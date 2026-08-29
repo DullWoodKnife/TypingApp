@@ -18,34 +18,16 @@ jobs:
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
-        java-version: '17'
-        distribution: 'temurin'
-        
-    - name: Generate Gradle Wrapper
-      run: |
-        # Check if gradlew exists but wrapper jar is missing
-        if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-          echo "Generating Gradle Wrapper..."
-          gradle wrapper --gradle-version 8.5
-          chmod +x gradlew
-        fi
+        java-version: "17"
+        distribution: "temurin"
         
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
-      
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-      
-    - name: Build Debug APK
-      run: ./gradlew assembleDebug --stacktrace --info 2>&1 | tee build.log
-      
-    - name: Upload Build Log on Failure
-      if: failure()
-      uses: actions/upload-artifact@v4
       with:
-        name: build-log
-        path: build.log
-        retention-days: 7
+        gradle-version: "8.5"
+        
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug --stacktrace --no-daemon
         
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
@@ -65,5 +47,5 @@ jobs:
           echo "- ✅ APK Size: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
           echo "- Download from Artifacts tab" >> $GITHUB_STEP_SUMMARY
         else
-          echo "- ❌ Build failed - check build log artifact" >> $GITHUB_STEP_SUMMARY
+          echo "- ❌ Build failed" >> $GITHUB_STEP_SUMMARY
         fi
