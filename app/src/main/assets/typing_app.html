@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>打字练习</title>
+<style>
+:root{--primary:#F3A04C;--accent:#E58522;--background:#F4F4F6;--panel-bg:#FEFDFC;--card-bg:#fff;--tooltip-bg:#454545;--success:#40B43E;--warning:#EBA400;--destructive:#E65C53;--destructive-hover:#D14B42;--primary-foreground:#fff;--text-primary:rgba(0,0,0,.8);--text-secondary:rgba(0,0,0,.5);--text-tertiary:rgba(0,0,0,.35);--intensity-0:rgba(0,0,0,0);--intensity-3:rgba(0,0,0,.03);--intensity-4:rgba(0,0,0,.04);--intensity-6:rgba(0,0,0,.06);--intensity-8:rgba(0,0,0,.08);--intensity-12:rgba(0,0,0,.12);--intensity-16:rgba(0,0,0,.16);--intensity-20:rgba(0,0,0,.2);--intensity-35:rgba(0,0,0,.35);--intensity-60:rgba(0,0,0,.6);--input-shadow:rgba(0,0,0,.08);--radius-sm:8px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+@media (prefers-color-scheme:dark){:root{--background:#232324;--panel-bg:#332D28;--card-bg:#2E2E2E;--tooltip-bg:#BABABA;--primary-foreground:#000;--text-primary:rgba(255,255,255,.8);--text-secondary:rgba(255,255,255,.5);--text-tertiary:rgba(255,255,255,.35);--intensity-0:rgba(255,255,255,0);--intensity-3:rgba(255,255,255,.03);--intensity-4:rgba(255,255,255,.04);--intensity-6:rgba(255,255,255,.06);--intensity-8:rgba(255,255,255,.08);--intensity-12:rgba(255,255,255,.12);--intensity-16:rgba(255,255,255,.16);--intensity-20:rgba(255,255,255,.2);--intensity-35:rgba(255,255,255,.35);--intensity-60:rgba(255,255,255,.6);--input-shadow:rgba(0,0,0,.28)}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--card-bg);color:var(--text-primary);font-size:14px;max-width:480px;margin:0 auto;min-height:100vh;position:relative;overflow-x:hidden;-webkit-text-size-adjust:100%}
+.page{display:none;padding:16px 16px 80px;min-height:100vh;width:100%}
+.page.active{display:block}
+.btn-red{display:block;width:100%;padding:14px;border:2px solid #E65C53;border-radius:var(--radius-md);background:transparent;color:#E65C53;font-size:15px;font-weight:500;text-align:center;margin-bottom:12px;transition:background .15s,color .15s;-webkit-tap-highlight-color:transparent}
+.btn-red:active{background:#E65C53;color:#fff}
+.btn-sm{display:inline-block;padding:6px 14px;border:1.5px solid #E65C53;border-radius:var(--radius-sm);background:transparent;color:#E65C53;font-size:12px;font-weight:500;transition:background .15s,color .15s;-webkit-tap-highlight-color:transparent}
+.btn-sm:active{background:#E65C53;color:#fff}
+.btn-primary{display:inline-block;padding:8px 20px;border:0;border-radius:var(--radius-md);background:#E65C53;color:#fff;font-size:13px;font-weight:500;transition:background .15s;-webkit-tap-highlight-color:transparent}
+.btn-primary:active{background:#D14B42}
+.top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding:4px 0}
+.top-bar .title{font-size:20px;font-weight:600;color:var(--text-primary)}
+.top-bar .title-sm{font-size:17px;font-weight:600;color:var(--text-primary)}
+.top-bar-actions{display:flex;gap:8px;align-items:center}
+.nav-bottom{position:fixed;bottom:0;left:50%;transform:translateX(-50%);max-width:480px;width:100%;display:flex;background:var(--card-bg);border-top:.5px solid var(--intensity-12);padding:8px 0 calc(8px + env(safe-area-inset-bottom,0));z-index:100}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--text-tertiary);background:none;border:0;padding:4px 0;transition:color .15s;-webkit-tap-highlight-color:transparent}
+.nav-item .nav-icon{font-size:20px;line-height:1}
+.nav-item.active{color:#E65C53;font-weight:500}
+.nav-item.active .nav-icon{color:#E65C53}
+.stats-row{display:flex;gap:8px;margin-bottom:16px}
+.stat-card{flex:1;background:var(--intensity-4);border-radius:var(--radius-md);padding:10px 8px;text-align:center}
+.stat-card .stat-val{font-size:18px;font-weight:600;color:var(--text-primary);line-height:1.3}
+.stat-card .stat-label{font-size:11px;color:var(--text-secondary);margin-top:2px}
+.practice-board{background:var(--intensity-4);border-radius:var(--radius-md);padding:12px;margin-bottom:8px;font-family:ui-serif,Georgia,serif;box-shadow:inset 0 0 0 1px var(--intensity-6);position:relative;cursor:text;max-height:320px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.line-pair{display:flex;flex-direction:column;margin-bottom:4px}
+.line-pair:last-child{margin-bottom:0}
+.ref-row{display:flex;flex-wrap:nowrap;justify-content:flex-start;gap:0;padding:2px 0}
+.ref-row .cell{display:inline-flex;align-items:center;justify-content:center;width:1.5em;height:2em;font-size:16px;color:var(--text-primary);transition:color .15s,background .15s;border-bottom:1px solid var(--intensity-16)}
+.ref-row .cell.correct{color:#40B43E}
+.ref-row .cell.wrong{color:#E65C53}
+.ref-row .cell.current{background:rgba(230,92,83,.12);border-radius:2px}
+.ref-row .cell.pending{color:var(--text-tertiary)}
+.input-row{display:flex;flex-wrap:nowrap;justify-content:flex-start;gap:0;padding:0 0 6px;border-bottom:2px dashed var(--intensity-12);min-height:28px}
+.line-pair:last-child .input-row{border-bottom:none}
+.input-row .icell{display:inline-flex;align-items:center;justify-content:center;width:1.5em;height:1.8em;font-size:16px;color:var(--text-primary);border-bottom:1.5px solid var(--intensity-20);transition:color .15s,border-color .15s}
+.input-row .icell.correct{color:#40B43E;border-bottom-color:#40B43E}
+.input-row .icell.wrong{color:#E65C53;border-bottom-color:#E65C53}
+.input-row .icell.current{border-bottom-color:#E65C53;border-bottom-width:2px}
+.input-row .icell.empty{color:transparent;border-bottom-color:var(--intensity-12)}
+.content-list{list-style:none;padding:0}
+.content-item{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:.5px solid var(--intensity-8)}
+.content-item:last-child{border-bottom:0}
+.content-item .ci-title{font-size:15px;font-weight:500;color:var(--text-primary);flex:1;cursor:pointer}
+.content-item .ci-actions{display:flex;gap:8px;align-items:center}
+.content-item .ci-actions button{background:none;border:0;font-size:16px;color:var(--text-secondary);padding:4px;cursor:pointer;transition:color .15s;-webkit-tap-highlight-color:transparent}
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.active{display:flex}
+.modal-box{background:var(--card-bg);border-radius:var(--radius-xl);padding:24px;width:100%;max-width:360px;text-align:center}
+.modal-box .modal-title{font-size:18px;font-weight:600;margin-bottom:8px}
+.modal-box .modal-body{font-size:14px;color:var(--text-secondary);margin-bottom:20px;line-height:1.6}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:13px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
+.form-group input,.form-group textarea{width:100%;padding:10px 12px;border:.5px solid var(--intensity-12);border-radius:var(--radius-md);background:var(--intensity-4);color:var(--text-primary);font-size:14px;outline:none;transition:border-color .15s;-webkit-appearance:none}
+.form-group input:focus,.form-group textarea:focus{border-color:#E65C53}
+.form-group textarea{min-height:120px;resize:vertical;line-height:1.6}
+.empty-state{text-align:center;padding:40px 20px;color:var(--text-tertiary);font-size:14px;line-height:1.8}
+.record-item{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:.5px solid var(--intensity-8);font-size:13px}
+.record-item .ri-left{flex:1}
+.record-item .ri-title{font-weight:500;color:var(--text-primary)}
+.record-item .ri-meta{font-size:11px;color:var(--text-secondary);margin-top:2px}
+.record-item .ri-right{text-align:right;font-size:12px;color:var(--text-secondary)}
+.record-item .ri-right .speed{font-size:16px;font-weight:600;color:#E65C53}
+.practice-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.practice-header .ph-title{font-size:17px;font-weight:600}
+.progress-bar{height:4px;background:var(--intensity-8);border-radius:2px;margin-bottom:16px;overflow:hidden}
+.progress-bar .pb-fill{height:100%;background:#E65C53;border-radius:2px;transition:width .3s;width:0%}
+.timer-warning{color:#E65C53;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.challenge-home{text-align:center;padding:20px 0}
+.badge-section{margin-bottom:28px}
+.badge-title{font-size:22px;font-weight:600;color:var(--text-primary);margin-bottom:4px}
+.badge-sub{font-size:13px;color:var(--text-secondary);margin-bottom:16px}
+.badge-icon{width:100px;height:100px;margin:0 auto 12px;background:linear-gradient(135deg,#CD7F32,#E8A85E,#CD7F32);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:48px;box-shadow:0 4px 20px rgba(205,127,50,.3)}
+.badge-icon.silver{background:linear-gradient(135deg,#A8A8A8,#D0D0D0,#A8A8A8);box-shadow:0 4px 20px rgba(168,168,168,.3)}
+.badge-icon.gold{background:linear-gradient(135deg,#D4A017,#F0C040,#D4A017);box-shadow:0 4px 20px rgba(212,160,23,.3)}
+.badge-icon.diamond{background:linear-gradient(135deg,#4FC3F7,#81D4FA,#4FC3F7);box-shadow:0 4px 20px rgba(79,195,247,.3)}
+.badge-icon.master{background:linear-gradient(135deg,#E040FB,#EA80FC,#E040FB);box-shadow:0 4px 20px rgba(224,64,251,.3)}
+.rank-progress{max-width:280px;margin:0 auto 24px}
+.rank-bar{height:6px;background:var(--intensity-8);border-radius:3px;overflow:hidden;margin-bottom:6px}
+.rank-bar .rank-fill{height:100%;background:linear-gradient(90deg,#CD7F32,#E8A85E);border-radius:3px;transition:width .3s}
+.rank-label{font-size:12px;color:var(--text-secondary);display:flex;justify-content:space-between}
+.rank-label span{opacity:.7}
+.challenge-stats{display:flex;gap:12px;justify-content:center;margin-bottom:24px}
+.challenge-stat{text-align:center}
+.challenge-stat .cs-val{font-size:20px;font-weight:600;color:var(--text-primary)}
+.challenge-stat .cs-label{font-size:11px;color:var(--text-secondary);margin-top:2px}
+</style>
+</head>
+<body>
+
+<div id="page-home" class="page active">
+  <div class="top-bar"><span class="title">练习</span></div>
+  <button class="btn-red" data-page="practice" data-mode="normal">普通打字练习</button>
+  <button class="btn-red" data-page="practice" data-mode="timed">一分钟限时练</button>
+  <button class="btn-red" data-page="contentList">添加练习内容</button>
+</div>
+
+<div id="page-practice" class="page">
+  <div class="practice-header">
+    <span class="ph-title">练习模式</span>
+    <button class="btn-sm" data-page="contentList" data-select="1">选择内容</button>
+  </div>
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-val" id="statTime">00:00</div><div class="stat-label">时间</div></div>
+    <div class="stat-card"><div class="stat-val" id="statProg">0%</div><div class="stat-label">进度</div></div>
+    <div class="stat-card"><div class="stat-val" id="statSpeed">0</div><div class="stat-label">速度(字/分)</div></div>
+    <div class="stat-card"><div class="stat-val" id="statAcc">0%</div><div class="stat-label">正确率</div></div>
+  </div>
+  <div style="text-align:center;margin-bottom:8px">
+    <span style="font-size:12px;color:var(--text-secondary);" id="practiceHint">点击下方输入框开始打字</span>
+  </div>
+  <div class="practice-board" id="practiceBoard"></div>
+  <textarea id="hiddenInput" style="width:100%;padding:10px 12px;border:1.5px solid #E65C53;border-radius:var(--radius-md);background:var(--card-bg);color:var(--text-primary);font-size:16px;outline:none;resize:none;height:48px;font-family:ui-serif,Georgia,serif;letter-spacing:1px" placeholder="在此输入..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+  <div style="display:flex;gap:8px;margin-top:12px;justify-content:center">
+    <button class="btn-sm" id="btnRestart" style="border-color:var(--intensity-12);color:var(--text-secondary)">重新开始</button>
+    <button class="btn-sm" id="btnBackHome" style="border-color:var(--intensity-12);color:var(--text-secondary)">返回首页</button>
+  </div>
+</div>
+
+<div id="page-contentList" class="page">
+  <div class="top-bar">
+    <span class="title-sm" id="contentListTitle">练习内容</span>
+    <div class="top-bar-actions">
+      <button class="btn-sm" id="btnAddContent" style="border-color:var(--intensity-12);color:var(--text-secondary)">+ 添加</button>
+    </div>
+  </div>
+  <div id="contentListWrap"></div>
+</div>
+
+<div id="page-contentEdit" class="page">
+  <div class="top-bar">
+    <span class="title-sm" id="editTitle">添加练习内容</span>
+    <div class="top-bar-actions">
+      <button class="btn-sm" id="btnCancelEdit" style="border-color:var(--intensity-12);color:var(--text-secondary)">取消</button>
+    </div>
+  </div>
+  <div class="form-group">
+    <label for="editInputTitle">标题</label>
+    <input id="editInputTitle" placeholder="请输入标题" />
+  </div>
+  <div class="form-group">
+    <label for="editInputContent">内容</label>
+    <textarea id="editInputContent" placeholder="请输入练习内容..."></textarea>
+  </div>
+  <button class="btn-red" id="btnSaveContent">保存</button>
+</div>
+
+<div id="page-contentDetail" class="page">
+  <div class="top-bar">
+    <span class="title-sm" id="detailTitle">内容详情</span>
+    <div class="top-bar-actions">
+      <button class="btn-sm" id="btnBackToList" style="border-color:var(--intensity-12);color:var(--text-secondary)">返回</button>
+    </div>
+  </div>
+  <div style="font-size:14px;color:var(--text-secondary);margin-bottom:12px" id="detailMeta"></div>
+  <div style="font-size:16px;line-height:2;letter-spacing:1px;color:var(--text-primary);background:var(--intensity-4);border-radius:var(--radius-md);padding:16px;word-break:break-all" id="detailContent"></div>
+</div>
+
+<div id="page-records" class="page">
+  <div class="top-bar"><span class="title-sm">成绩记录</span></div>
+  <div id="recordsWrap"></div>
+  <div style="text-align:center;margin-top:12px"><button class="btn-sm" id="btnClearRecords" style="border-color:var(--intensity-12);color:var(--text-secondary)">清空记录</button></div>
+</div>
+
+<div id="page-challenge" class="page">
+  <div class="top-bar"><span class="title-sm">进阶挑战</span></div>
+  <div class="challenge-home" id="challengeHome">
+    <div class="badge-section">
+      <div class="badge-icon" id="badgeIcon">🥉</div>
+      <div class="badge-title" id="badgeTitle">青铜 1星</div>
+      <div class="badge-sub" id="badgeSub">完成挑战获取积分，提升段位</div>
+    </div>
+    <div class="rank-progress">
+      <div class="rank-bar"><div class="rank-fill" id="rankFill" style="width:20%"></div></div>
+      <div class="rank-label"><span>青铜</span><span id="rankInfo">20/100</span><span>白银</span></div>
+    </div>
+    <div class="challenge-stats">
+      <div class="challenge-stat"><div class="cs-val" id="csGames">0</div><div class="cs-label">总场次</div></div>
+      <div class="challenge-stat"><div class="cs-val" id="csBestSpeed">0</div><div class="cs-label">最快(字/分)</div></div>
+      <div class="challenge-stat"><div class="cs-val" id="csBestAcc">0%</div><div class="cs-label">最高正确率</div></div>
+    </div>
+    <button class="btn-red" id="btnStartChallenge" style="max-width:200px;margin:0 auto">开始挑战</button>
+  </div>
+</div>
+
+<div class="nav-bottom">
+  <button class="nav-item" data-page="challenge"><span class="nav-icon">🏆</span>进阶挑战</button>
+  <button class="nav-item active" data-page="home"><span class="nav-icon">⌨️</span>打字练习</button>
+  <button class="nav-item" data-page="records"><span class="nav-icon">📊</span>成绩记录</button>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <div class="modal-title" id="modalTitle">练习完成！</div>
+    <div class="modal-body" id="modalBody"></div>
+    <button class="btn-primary" id="modalBtn">好的</button>
+  </div>
+</div>
+
+<script>
+(function(){
+var APP_KEY = 'typing_app_data';
+function getData(){try{return JSON.parse(localStorage.getItem(APP_KEY))||defaultData()}catch{return defaultData()}}
+function saveData(d){localStorage.setItem(APP_KEY,JSON.stringify(d))}
+function defaultData(){
+  var now=Date.now();
+  return {
+    contents:[
+      {id:'c1',title:'五课',content:'古云：不矜细行，终累大德。为山九仞，功亏一篑。此圣贤之深戒也。然今之士人，多务虚名而鲜实学，逐末忘本，舍近求远。是以所学非所用，所用非所学，终无成焉。',createdAt:now},
+      {id:'c2',title:'正气歌',content:'天地有正气，杂然赋流形。下则为河岳，上则为日星。于人曰浩然，沛乎塞苍冥。皇路当清夷，含和吐明庭。时穷节乃见，一一垂丹青。',createdAt:now},
+      {id:'c3',title:'说园',content:'园有静观、动观之分。小园以静观为主，大园以动观为主。静观者，如静坐斋中，平视远眺，景随人意；动观者，步移景换，如游画中。',createdAt:now},
+      {id:'c4',title:'清静经',content:'大道无形，生育天地；大道无情，运行日月；大道无名，长养万物。吾不知其名，强名曰道。夫道者，有清有浊，有动有静。',createdAt:now},
+      {id:'c5',title:'夏夜晚风',content:'夏夜的风，带着白天的余温，轻轻拂过脸颊。远处的蝉鸣此起彼伏，像是大自然的交响乐。星空下，一切都显得那么宁静而美好。',createdAt:now},
+      {id:'c6',title:'千字文',content:'天地玄黄，宇宙洪荒。日月盈昃，辰宿列张。寒来暑往，秋收冬藏。闰余成岁，律吕调阳。云腾致雨，露结为霜。',createdAt:now},
+      {id:'c7',title:'孙子兵法始计篇',content:'孙子曰：兵者，国之大事，死生之地，存亡之道，不可不察也。故经之以五事，校之以计，而索其情：一曰道，二曰天，三曰地，四曰将，五曰法。',createdAt:now},
+      {id:'c8',title:'三字经',content:'人之初，性本善。性相近，习相远。苟不教，性乃迁。教之道，贵以专。昔孟母，择邻处。子不学，断机杼。窦燕山，有义方。教五子，名俱扬。',createdAt:now},
+      {id:'c9',title:'般若波罗蜜多心经',content:'观自在菩萨，行深般若波罗蜜多时，照见五蕴皆空，度一切苦厄。舍利子，色不异空，空不异色，色即是空，空即是色。受想行识，亦复如是。',createdAt:now}
+    ],
+    records:[]
+  };
+}
+var data=getData();
+var currentContentId=data.contents[0]&&data.contents[0].id||'';
+var practiceMode='normal';
+var cursorPos=0;
+var correctCount=0;
+var wrongCount=0;
+var timer=null;
+var startTime=0;
+var elapsed=0;
+var isRunning=false;
+var isFinished=false;
+var editId=null;
+var isComposing=false;
+var charsPerLine=15;
+var totalChars=0;
+
+var pages=document.querySelectorAll('.page');
+var navItems=document.querySelectorAll('.nav-item');
+var modalOverlay=document.getElementById('modalOverlay');
+var modalTitle=document.getElementById('modalTitle');
+var modalBody=document.getElementById('modalBody');
+var modalBtn=document.getElementById('modalBtn');
+
+function showPage(id){
+  pages.forEach(function(p){p.classList.remove('active');});
+  var el=document.getElementById('page-'+id);
+  if(el)el.classList.add('active');
+  navItems.forEach(function(n){
+    n.classList.toggle('active',n.dataset.page===id);
+  });
+}
+function getContent(id){return data.contents.find(function(c){return c.id===id;});}
+function getContentIndex(id){return data.contents.findIndex(function(c){return c.id===id;});}
+function genId(){return 'c'+Date.now()+'_'+Math.random().toString(36).slice(2,6);}
+
+function renderContentList(selectMode){
+  var wrap=document.getElementById('contentListWrap');
+  var titleEl=document.getElementById('contentListTitle');
+  if(selectMode){titleEl.textContent='选择练习内容';}else{titleEl.textContent='练习内容';}
+  if(!data.contents.length){
+    wrap.innerHTML='<div class="empty-state">暂无练习内容，点击右上角 "添加" 创建</div>';
+    return;
+  }
+  var html='<ul class="content-list">';
+  data.contents.forEach(function(c){
+    html+='<li class="content-item">'+
+      '<span class="ci-title" data-action="view" data-id="'+c.id+'">'+c.title+'</span>'+
+      '<div class="ci-actions">'+
+        '<button data-action="edit" data-id="'+c.id+'" title="编辑">✏️</button>'+
+        '<button data-action="delete" data-id="'+c.id+'" title="删除">🗑️</button>'+
+      '</div></li>';
+  });
+  html+='</ul>';
+  wrap.innerHTML=html;
+  wrap.querySelectorAll('[data-action="view"]').forEach(function(el){
+    el.addEventListener('click',function(){viewContent(this.dataset.id);});
+  });
+  wrap.querySelectorAll('[data-action="edit"]').forEach(function(el){
+    el.addEventListener('click',function(e){e.stopPropagation();openEdit(this.dataset.id);});
+  });
+  wrap.querySelectorAll('[data-action="delete"]').forEach(function(el){
+    el.addEventListener('click',function(e){e.stopPropagation();deleteContent(this.dataset.id);});
+  });
+  if(selectMode){
+    wrap.querySelectorAll('.ci-title').forEach(function(el){
+      el.style.cursor='pointer';
+      el.addEventListener('click',function(){selectContentForPractice(this.dataset.id);});
+    });
+  }
+}
+function selectContentForPractice(id){
+  currentContentId=id;
+  data=getData();
+  showPage('practice');
+  initPractice();
+}
+function viewContent(id){
+  var c=getContent(id);
+  if(!c)return;
+  document.getElementById('detailTitle').textContent=c.title;
+  document.getElementById('detailMeta').textContent='共 '+c.content.length+' 字';
+  document.getElementById('detailContent').textContent=c.content;
+  showPage('contentDetail');
+}
+function openEdit(id){
+  editId=id||null;
+  var titleEl=document.getElementById('editTitle');
+  var inputTitle=document.getElementById('editInputTitle');
+  var inputContent=document.getElementById('editInputContent');
+  if(editId){
+    var c=getContent(editId);
+    if(c){titleEl.textContent='编辑内容';inputTitle.value=c.title;inputContent.value=c.content;}
+    else{editId=null;titleEl.textContent='添加练习内容';inputTitle.value='';inputContent.value='';}
+  }else{
+    titleEl.textContent='添加练习内容';
+    inputTitle.value='';
+    inputContent.value='';
+  }
+  showPage('contentEdit');
+}
+function saveContent(){
+  var title=document.getElementById('editInputTitle').value.trim();
+  var content=document.getElementById('editInputContent').value.trim();
+  if(!title||!content){showModal('提示','标题和内容不能为空');return;}
+  data=getData();
+  if(editId){
+    var idx=getContentIndex(editId);
+    if(idx>=0){data.contents[idx].title=title;data.contents[idx].content=content;}
+  }else{
+    data.contents.push({id:genId(),title:title,content:content,createdAt:Date.now()});
+  }
+  saveData(data);
+  editId=null;
+  showPage('contentList');
+  renderContentList(false);
+}
+function deleteContent(id){
+  if(!confirm('确定要删除此练习内容吗？'))return;
+  data=getData();
+  var idx=getContentIndex(id);
+  if(idx>=0){
+    data.contents.splice(idx,1);
+    if(currentContentId===id)currentContentId=data.contents[0]&&data.contents[0].id||'';
+    saveData(data);
+    renderContentList(false);
+  }
+}
+
+function renderBoard(text){
+  var board=document.getElementById('practiceBoard');
+  totalChars=text.length;
+  var lines=[];
+  for(var i=0;i<text.length;i+=charsPerLine){
+    lines.push(text.slice(i,i+charsPerLine));
+  }
+  var html='';
+  var globalIdx=0;
+  for(var li=0;li<lines.length;li++){
+    var line=lines[li];
+    html+='<div class="line-pair" data-line="'+li+'">';
+    html+='<div class="ref-row">';
+    for(var ci=0;ci<line.length;ci++){
+      var cls=globalIdx===0?'cell current':'cell pending';
+      html+='<span class="'+cls+'" data-idx="'+globalIdx+'">'+line[ci]+'</span>';
+      globalIdx++;
+    }
+    html+='</div>';
+    html+='<div class="input-row" data-line="'+li+'">';
+    var startIdx=li*charsPerLine;
+    for(var ci=0;ci<line.length;ci++){
+      var idx=startIdx+ci;
+      html+='<span class="icell empty" data-idx="'+idx+'"></span>';
+    }
+    html+='</div>';
+    html+='</div>';
+  }
+  board.innerHTML=html;
+}
+
+function initPractice(){
+  var c=getContent(currentContentId);
+  if(!c){
+    showModal('提示','请先选择练习内容',function(){showPage('contentList');renderContentList(true);});
+    return;
+  }
+  stopTimer();
+  cursorPos=0;correctCount=0;wrongCount=0;isRunning=false;isFinished=false;elapsed=0;
+  document.getElementById('statTime').textContent='00:00';
+  document.getElementById('statTime').classList.remove('timer-warning');
+  document.getElementById('statProg').textContent='0%';
+  document.getElementById('statSpeed').textContent='0';
+  document.getElementById('statAcc').textContent='0%';
+  document.getElementById('practiceHint').textContent='点击下方输入框开始打字';
+  var input=document.getElementById('hiddenInput');
+  input.value='';
+  input.disabled=false;
+  input.focus();
+  renderBoard(c.content);
+  saveData(data);
+}
+
+function updateStats(text){
+  var totalCharPos=cursorPos;
+  var totalChars=text.length;
+  var prog=totalChars>0?Math.min(100,Math.round(totalCharPos/totalChars*100)):0;
+  document.getElementById('statProg').textContent=prog+'%';
+  var acc=totalCharPos>0?Math.round(correctCount/(correctCount+wrongCount)*100):0;
+  document.getElementById('statAcc').textContent=acc+'%';
+  var secs=elapsed>0?elapsed:1;
+  var speed=Math.round(correctCount/secs*60);
+  document.getElementById('statSpeed').textContent=speed;
+  if(practiceMode==='timed'){
+    var remain=60-elapsed;
+    var min=Math.floor(remain/60);var sec=remain%60;
+    var timeStr=(min<10?'0':'')+min+':'+(sec<10?'0':'')+sec;
+    document.getElementById('statTime').textContent=timeStr;
+    if(remain<=10)document.getElementById('statTime').classList.add('timer-warning');
+    else document.getElementById('statTime').classList.remove('timer-warning');
+  }
+}
+
+function handleInput(e){
+  if(isFinished||isComposing)return;
+  var input=document.getElementById('hiddenInput');
+  var val=input.value;
+  var c=getContent(currentContentId);
+  if(!c||!c.content)return;
+  var text=c.content;
+  if(!isRunning&&val.length>0){
+    isRunning=true;
+    startTime=Date.now();
+    elapsed=0;
+    document.getElementById('practiceHint').textContent='正在输入...';
+    startTimer();
+  }
+  var newPos=val.length;
+  if(newPos>text.length){
+    input.value=text;
+    return;
+  }
+  cursorPos=0;correctCount=0;wrongCount=0;
+  var wrongSet={};
+  for(var i=0;i<newPos&&i<text.length;i++){
+    if(val[i]===text[i]){correctCount++;cursorPos=i+1;}
+    else{wrongCount++;wrongSet[i]=true;}
+  }
+  var refCells=document.querySelectorAll('.ref-row .cell');
+  for(var i=0;i<refCells.length;i++){
+    refCells[i].className='cell pending';
+    if(i<newPos&&i<text.length){
+      if(wrongSet[i])refCells[i].className='cell wrong';
+      else refCells[i].className='cell correct';
+    }
+  }
+  if(cursorPos<refCells.length)refCells[cursorPos].className='cell current';
+  var iCells=document.querySelectorAll('.icell');
+  for(var i=0;i<iCells.length;i++){
+    if(i<newPos&&i<text.length){
+      iCells[i].textContent=val[i];
+      iCells[i].className='icell '+(wrongSet[i]?'wrong':'correct');
+    }else if(i===newPos&&i<text.length){
+      iCells[i].textContent='';
+      iCells[i].className='icell current';
+    }else{
+      iCells[i].textContent='';
+      iCells[i].className='icell empty';
+    }
+  }
+  updateStats(text);
+  if(cursorPos>=text.length&&!isFinished){
+    isFinished=true;
+    stopTimer();
+    input.disabled=true;
+    document.getElementById('practiceHint').textContent='已完成！';
+    var secs=elapsed>0?elapsed:1;
+    var speed=Math.round(correctCount/secs*60);
+    var acc=correctCount+wrongCount>0?Math.round(correctCount/(correctCount+wrongCount)*100):0;
+    saveRecord(correctCount,acc,speed);
+    showModal('练习完成！','速度：'+speed+' 字/分<br>正确率：'+acc+'%<br>正确：'+correctCount+' 字<br>错误：'+wrongCount+' 字<br>用时：'+secs+' 秒',function(){updateChallengePage();});
+  }
+}
+
+function startTimer(){
+  if(timer)return;
+  timer=setInterval(function(){
+    if(!isRunning)return;
+    elapsed=Math.floor((Date.now()-startTime)/1000);
+    if(practiceMode==='timed'){
+      if(elapsed>=60){
+        stopTimer();
+        finishTimedPractice();
+        return;
+      }
+      var remain=60-elapsed;
+      var min=Math.floor(remain/60);var sec=remain%60;
+      document.getElementById('statTime').textContent=(min<10?'0':'')+min+':'+(sec<10?'0':'')+sec;
+      if(remain<=10)document.getElementById('statTime').classList.add('timer-warning');
+      else document.getElementById('statTime').classList.remove('timer-warning');
+    }else{
+      var min=Math.floor(elapsed/60);var sec=elapsed%60;
+      document.getElementById('statTime').textContent=(min<10?'0':'')+min+':'+(sec<10?'0':'')+sec;
+    }
+    var c=getContent(currentContentId);
+    if(c){updateStats(c.content);}
+  },200);
+}
+function stopTimer(){
+  if(timer){clearInterval(timer);timer=null;}
+}
+function finishTimedPractice(){
+  isRunning=false;isFinished=true;
+  document.getElementById('hiddenInput').disabled=true;
+  document.getElementById('practiceHint').textContent='时间到！';
+  var c=getContent(currentContentId);
+  if(!c)return;
+  var text=c.content;
+  var val=document.getElementById('hiddenInput').value;
+  var correct=0,wrong=0;
+  for(var i=0;i<val.length&&i<text.length;i++){
+    if(val[i]===text[i])correct++;else wrong++;
+  }
+  correctCount=correct;wrongCount=wrong;
+  cursorPos=val.length;
+  var secs=60;
+  var speed=Math.round(correct/secs*60);
+  var acc=correct+wrong>0?Math.round(correct/(correct+wrong)*100):0;
+  saveRecord(correct,acc,speed);
+  updateStats(text);
+  showModal('时间到！','速度：'+speed+' 字/分<br>正确率：'+acc+'%<br>正确：'+correct+' 字<br>错误：'+wrong+' 字',function(){updateChallengePage();});
+}
+function saveRecord(correct,acc,speed){
+  data=getData();
+  var c=getContent(currentContentId);
+  data.records.push({
+    id:'r'+Date.now(),
+    contentId:currentContentId,
+    contentTitle:c?c.title:'未知',
+    mode:practiceMode,
+    speed:speed,
+    accuracy:acc,
+    correctChars:correct,
+    wrongChars:wrongCount,
+    totalChars:correct+wrongCount,
+    duration:elapsed,
+    date:Date.now()
+  });
+  saveData(data);
+}
+function renderRecords(){
+  var wrap=document.getElementById('recordsWrap');
+  data=getData();
+  if(!data.records.length){
+    wrap.innerHTML='<div class="empty-state">暂无成绩记录，快去练习吧！</div>';
+    return;
+  }
+  var recs=[].concat(data.records).reverse();
+  var html='';
+  recs.forEach(function(r){
+    var d=new Date(r.date);
+    var dateStr=(d.getMonth()+1)+'月'+d.getDate()+'日 '+(d.getHours()<10?'0':'')+d.getHours()+':'+(d.getMinutes()<10?'0':'')+d.getMinutes();
+    var modeLabel=r.mode==='timed'?'限时':'普通';
+    html+='<div class="record-item"><div class="ri-left"><div class="ri-title">'+r.contentTitle+'</div><div class="ri-meta">'+dateStr+' &middot; '+modeLabel+'模式 &middot; 正确率'+r.accuracy+'%</div></div><div class="ri-right"><div class="speed">'+r.speed+'</div><div>字/分</div></div></div>';
+  });
+  wrap.innerHTML=html;
+}
+function clearRecords(){
+  if(!confirm('确定要清空所有成绩记录吗？'))return;
+  data=getData();
+  data.records=[];
+  saveData(data);
+  renderRecords();
+}
+function showModal(title,body,cb){
+  modalTitle.textContent=title;
+  modalBody.innerHTML=body;
+  modalOverlay.classList.add('active');
+  modalBtn._cb=cb||null;
+}
+
+function getRank(score){
+  if(score>=1000)return {name:'大师',star:'',icon:'🏆',cls:'master',next:null,current:1000};
+  if(score>=600)return {name:'钻石',star:'',icon:'💎',cls:'diamond',next:1000,current:score};
+  if(score>=300)return {name:'黄金',star:'',icon:'🥇',cls:'gold',next:600,current:score};
+  if(score>=100)return {name:'白银',star:'',icon:'🥈',cls:'silver',next:300,current:score};
+  var star=Math.floor(score/20)+1;
+  if(star>5)star=5;
+  return {name:'青铜',star:star+'星',icon:'🥉',cls:'',next:100,current:score};
+}
+
+function updateChallengePage(){
+  data=getData();
+  var recs=data.records;
+  var totalGames=recs.length;
+  var bestSpeed=0,bestAcc=0;
+  recs.forEach(function(r){
+    if(r.speed>bestSpeed)bestSpeed=r.speed;
+    if(r.accuracy>bestAcc)bestAcc=r.accuracy;
+  });
+  var totalScore=0;
+  recs.forEach(function(r){
+    totalScore+=Math.round(r.speed*r.accuracy/100);
+  });
+  var rank=getRank(totalScore);
+  var icon=document.getElementById('badgeIcon');
+  icon.textContent=rank.icon;
+  icon.className='badge-icon';
+  if(rank.cls)icon.classList.add(rank.cls);
+  document.getElementById('badgeTitle').textContent=rank.name+' '+rank.star;
+  document.getElementById('badgeSub').textContent=rank.next?'距'+(rank.next-rank.current)+'分升至下一段位':'已达最高段位！';
+  var pct=rank.next?Math.min(100,Math.round((rank.current/rank.next)*100)):100;
+  document.getElementById('rankFill').style.width=pct+'%';
+  document.getElementById('rankInfo').textContent=rank.current+'/'+(rank.next||rank.current);
+  document.getElementById('csGames').textContent=totalGames;
+  document.getElementById('csBestSpeed').textContent=bestSpeed;
+  document.getElementById('csBestAcc').textContent=bestAcc+'%';
+}
+
+function startChallenge(){
+  practiceMode='timed';
+  currentContentId=data.contents[0]&&data.contents[0].id||'';
+  if(!currentContentId){showModal('提示','请先添加练习内容');return;}
+  showPage('practice');
+  initPractice();
+}
+
+function init(){
+  var btnHome=document.querySelectorAll('[data-page="home"]');
+  var btnPractice=document.querySelectorAll('[data-page="practice"]');
+  var btnChallenge=document.querySelectorAll('[data-page="challenge"]');
+  var btnRecords=document.querySelectorAll('[data-page="records"]');
+  var btnContentList=document.querySelectorAll('[data-page="contentList"]');
+  btnHome.forEach(function(el){el.addEventListener('click',function(){showPage('home');});});
+  btnChallenge.forEach(function(el){el.addEventListener('click',function(){showPage('challenge');updateChallengePage();});});
+  btnRecords.forEach(function(el){el.addEventListener('click',function(){showPage('records');renderRecords();});});
+  btnContentList.forEach(function(el){
+    el.addEventListener('click',function(){
+      var select=this.dataset.select==='1';
+      showPage('contentList');
+      renderContentList(select);
+    });
+  });
+  btnPractice.forEach(function(el){
+    el.addEventListener('click',function(){
+      practiceMode=this.dataset.mode||'normal';
+      currentContentId=data.contents[0]&&data.contents[0].id||'';
+      if(!currentContentId){showModal('提示','请先添加练习内容');return;}
+      showPage('practice');
+      initPractice();
+    });
+  });
+  document.getElementById('btnAddContent').addEventListener('click',function(){openEdit(null);});
+  document.getElementById('btnCancelEdit').addEventListener('click',function(){showPage('contentList');renderContentList(false);});
+  document.getElementById('btnSaveContent').addEventListener('click',saveContent);
+  document.getElementById('btnBackToList').addEventListener('click',function(){showPage('contentList');renderContentList(false);});
+  document.getElementById('btnRestart').addEventListener('click',function(){initPractice();});
+  document.getElementById('btnBackHome').addEventListener('click',function(){stopTimer();showPage('home');});
+  document.getElementById('btnClearRecords').addEventListener('click',clearRecords);
+  document.getElementById('btnStartChallenge').addEventListener('click',startChallenge);
+  var hInput=document.getElementById('hiddenInput');
+  hInput.addEventListener('focus',function(){document.getElementById('practiceHint').textContent='输入中...';});
+  hInput.addEventListener('blur',function(){if(!isFinished)document.getElementById('practiceHint').textContent='点击下方输入框开始打字';});
+  hInput.addEventListener('input',handleInput);
+  hInput.addEventListener('compositionstart',function(){isComposing=true;});
+  document.getElementById('hiddenInput').addEventListener('compositionend',function(e){isComposing=false;handleInput(e);});
+  modalBtn.addEventListener('click',function(){
+    modalOverlay.classList.remove('active');
+    if(typeof modalBtn._cb==='function')modalBtn._cb();
+    modalBtn._cb=null;
+  });
+  modalOverlay.addEventListener('click',function(e){
+    if(e.target===this){modalOverlay.classList.remove('active');if(typeof modalBtn._cb==='function')modalBtn._cb();modalBtn._cb=null;}
+  });
+  showPage('home');
+}
+document.addEventListener('DOMContentLoaded',init);
+if(document.readyState!=='loading')init();
+})();
+</script>
+</body>
+</html>
