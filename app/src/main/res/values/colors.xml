@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="destructive">#E65C53</color>
+    <color name="destructive_hover">#D14B42</color>
+    <color name="success">#40B43E</color>
+    <color name="warning">#EBA400</color>
+    <color name="card_bg">#FFFFFF</color>
+    <color name="background">#F4F4F6</color>
+    <color name="panel_bg">#FEFDFC</color>
+    <color name="text_primary">#CC000000</color>
+    <color name="text_secondary">#80000000</color>
+    <color name="text_tertiary">#59000000</color>
+    <color name="intensity_0">#00000000</color>
+    <color name="intensity_4">#0D000000</color>
+    <color name="intensity_6">#0F000000</color>
+    <color name="intensity_8">#14000000</color>
+    <color name="intensity_12">#1F000000</color>
+    <color name="intensity_16">#29000000</color>
+    <color name="intensity_20">#33000000</color>
+    <color name="current_highlight">#1AE65C53</color>
+    <color name="bronze_start">#CD7F32</color>
+    <color name="bronze_end">#E8A85E</color>
+    <color name="silver_start">#A8A8A8</color>
+    <color name="silver_end">#D0D0D0</color>
+    <color name="gold_start">#D4A017</color>
+    <color name="gold_end">#F0C040</color>
+    <color name="diamond_start">#4FC3F7</color>
+    <color name="diamond_end">#81D4FA</color>
+    <color name="master_start">#E040FB</color>
+    <color name="master_end">#EA80FC</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>
