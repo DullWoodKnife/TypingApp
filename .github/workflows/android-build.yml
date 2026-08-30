@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Signed Android APK
 
 on:
   push:
@@ -26,13 +26,25 @@ jobs:
         with:
           gradle-version: '8.4'
 
-      - name: Build Debug APK with Gradle
+      - name: Generate Release Keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore app/release.keystore \
+            -storepass typingapp123 \
+            -alias typingapp \
+            -keypass typingapp123 \
+            -keyalg RSA \
+            -validity 10000 \
+            -dname "CN=Typing App Debug, OU=Dev, O=TypingApp, L=City, ST=State, C=US" \
+            -storetype JKS
+
+      - name: Build Signed Debug APK
         run: gradle assembleDebug --stacktrace --no-daemon
 
       - name: Upload Debug APK artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: debug-apk
+          name: debug-apk-signed
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
