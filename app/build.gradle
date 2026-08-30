@@ -15,8 +15,21 @@ android {
         versionName "1.0"
     }
 
-    buildTypes {
+    signingConfigs {
         release {
+            storeFile file('release.keystore')
+            storePassword 'typingapp123'
+            keyAlias 'typingapp'
+            keyPassword 'typingapp123'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.release
+        }
+        release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
@@ -30,25 +43,29 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
-
-    buildFeatures {
-        viewBinding true
-    }
 }
 
 dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.11.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    implementation 'androidx.navigation:navigation-fragment-ktx:2.7.6'
-    implementation 'androidx.navigation:navigation-ui-ktx:2.7.6'
-
-    // Lifecycle (keep these - they work without Room)
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0'
-    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.7.0'
-
-    testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 }
+
+// Auto-generate debug keystore if it doesn't exist
+tasks.register('generateKeystore') {
+    def keystoreFile = file("${projectDir}/release.keystore")
+    if (!keystoreFile.exists()) {
+        exec {
+            commandLine 'keytool', '-genkeypair',
+                '-v', '-keystore', keystoreFile.absolutePath,
+                '-storepass', 'typingapp123',
+                '-alias', 'typingapp',
+                '-keypass', 'typingapp123',
+                '-keyalg', 'RSA',
+                '-validity', '10000',
+                '-dname', 'CN=Typing App Debug, OU=Dev, O=TypingApp, L=City, ST=State, C=US',
+                '-storetype', 'JKS'
+        }
+    }
+}
+
+preBuild.dependsOn generateKeystore
