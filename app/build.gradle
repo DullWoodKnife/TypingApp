@@ -48,24 +48,5 @@ android {
 dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.10.0'
 }
-
-// Auto-generate debug keystore if it doesn't exist
-tasks.register('generateKeystore') {
-    def keystoreFile = file("${projectDir}/release.keystore")
-    if (!keystoreFile.exists()) {
-        exec {
-            commandLine 'keytool', '-genkeypair',
-                '-v', '-keystore', keystoreFile.absolutePath,
-                '-storepass', 'typingapp123',
-                '-alias', 'typingapp',
-                '-keypass', 'typingapp123',
-                '-keyalg', 'RSA',
-                '-validity', '10000',
-                '-dname', 'CN=Typing App Debug, OU=Dev, O=TypingApp, L=City, ST=State, C=US',
-                '-storetype', 'JKS'
-        }
-    }
-}
-
-preBuild.dependsOn generateKeystore
