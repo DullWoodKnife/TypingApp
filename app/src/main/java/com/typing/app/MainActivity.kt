@@ -39,14 +39,13 @@ class MainActivity : AppCompatActivity() {
                 if (message != null) {
                     android.util.Log.d("TypingApp", "Console [$lineNumber]: $message")
                 }
-                return true
+                return false // Return false (not handled) — correct return type for this overload
             }
         }
 
         // Handle page navigation within WebView
         webView.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean {
-                // Keep all links within the WebView
+            override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
                 return false
             }
         }
@@ -65,12 +64,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         // Prevent memory leak: properly destroy WebView
-        webView.apply {
-            (parent as? android.view.ViewGroup)?.removeView(this)
-            stopLoading()
-            loadUrl("about:blank")
-            removeAllViews()
-            destroy()
+        try {
+            webView.apply {
+                (parent as? android.view.ViewGroup)?.removeView(this)
+                stopLoading()
+                loadUrl("about:blank")
+                removeAllViews()
+                destroy()
+            }
+        } catch (_: Exception) {
+            // Ignore exceptions during cleanup
         }
         super.onDestroy()
     }
