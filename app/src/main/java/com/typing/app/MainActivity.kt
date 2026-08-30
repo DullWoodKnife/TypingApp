@@ -1,8 +1,6 @@
 package com.typing.app
 
 import android.os.Bundle
-import android.view.View
-import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -16,9 +14,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        webView = findViewById(R.id.webview)
+        webView = findViewById(R.id.webview) ?: run {
+            finish()
+            return
+        }
 
-        // Configure WebView settings for typing practice
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -33,24 +33,12 @@ class MainActivity : AppCompatActivity() {
             defaultTextEncodingName = "utf-8"
         }
 
-        // Enable JavaScript console logging for debugging
-        webView.webChromeClient = object : WebChromeClient() {
-            override fun onConsoleMessage(message: String?, lineNumber: Int, sourceId: String?): Boolean {
-                if (message != null) {
-                    android.util.Log.d("TypingApp", "Console [$lineNumber]: $message")
-                }
-                return false // Return false (not handled) — correct return type for this overload
-            }
-        }
-
-        // Handle page navigation within WebView
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
                 return false
             }
         }
 
-        // Load the typing app HTML from assets
         webView.loadUrl("file:///android_asset/typing_app.html")
     }
 
@@ -63,7 +51,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        // Prevent memory leak: properly destroy WebView
         try {
             webView.apply {
                 (parent as? android.view.ViewGroup)?.removeView(this)
@@ -72,9 +59,7 @@ class MainActivity : AppCompatActivity() {
                 removeAllViews()
                 destroy()
             }
-        } catch (_: Exception) {
-            // Ignore exceptions during cleanup
-        }
+        } catch (_: Exception) {}
         super.onDestroy()
     }
 }
