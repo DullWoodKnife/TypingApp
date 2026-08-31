@@ -442,16 +442,14 @@ class MainActivity : AppCompatActivity() {
         val text = content.getString("content")
         if (inputLen >= text.length) return
 
-        // Estimate line position based on character index
-        // Use layout to find the line
-        val layout = typingTextView.layout ?: return
-        val lineNum = layout.getLineForOffset(inputLen.coerceAtMost(text.length - 1))
-        val y = layout.getLineTop(lineNum)
+        // Calculate which row the cursor is on (each row has CHARS_PER_ROW characters)
+        val currentRow = inputLen / TypingTextView.CHARS_PER_ROW
+        val y = (currentRow * typingTextView.rowHeight).toInt()
 
         val scrollViewHeight = typingScrollView.height
         val scrollY = typingScrollView.scrollY
 
-        // If the current line is below the visible area, scroll down
+        // If the current row is below the visible area, scroll down
         if (y > scrollY + scrollViewHeight * 0.6) {
             typingScrollView.smoothScrollTo(0, y - scrollViewHeight / 3)
         } else if (y < scrollY) {
