@@ -9,7 +9,7 @@ import android.os.Looper
 import android.text.Editable
 import android.text.SpannableString
 import android.text.Spanned
-import android.text.StrikethroughSpan
+import android.text.style.StrikethroughSpan
 import android.text.TextWatcher
 import android.text.style.ForegroundColorSpan
 import android.text.style.UnderlineSpan
