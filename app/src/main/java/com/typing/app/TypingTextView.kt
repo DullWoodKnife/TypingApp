@@ -104,9 +104,10 @@ class TypingTextView @JvmOverloads constructor(
             // Row layout using percentages of rowHeight:
             // 0%    - 25%:  Original text area
             // 25%   - 55%:  Gap
-            // 55%   - 80%:  Input text area
-            // 80%   - 90%:  Gap
-            // 90%   - 100%: Separator line area
+            // 55%   - 75%:  Input text area
+            // 75%   - 80%:  Small gap
+            // 80%   - 82%:  Separator line
+            // 82%   - 100%: Gap to next row
 
             // === Original text at 25% of row ===
             val originalBaseline = rowTop + rowHeight * 0.25f
@@ -130,8 +131,8 @@ class TypingTextView @JvmOverloads constructor(
                 }
             }
 
-            // === Separator line at 90% of row ===
-            val lineY = rowTop + rowHeight * 0.90f
+            // === Separator line (right below input text descent) ===
+            val lineY = inputBaseline + fm.descent + 4f
             canvas.drawLine(
                 paddingLeft - 4f, lineY,
                 paddingLeft + charWidth * CHARS_PER_ROW + 4f, lineY,

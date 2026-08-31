@@ -59,18 +59,6 @@ jobs:
         with:
           gradle-version: '8.4'
 
-      - name: Generate Release Keystore
-        run: |
-          keytool -genkeypair -v \
-            -keystore app/release.keystore \
-            -storepass typingapp123 \
-            -alias typingapp \
-            -keypass typingapp123 \
-            -keyalg RSA \
-            -validity 10000 \
-            -dname "CN=Typing App Debug, OU=Dev, O=TypingApp, L=City, ST=State, C=US" \
-            -storetype JKS
-
       - name: Build Signed Debug APK
         run: gradle assembleDebug --stacktrace --no-daemon
 
