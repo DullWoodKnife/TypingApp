@@ -25,47 +25,67 @@
 
                 <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="match_parent"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:paddingHorizontal="16dp">
 
+                    <!-- 标题水平居中 -->
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginTop="24dp"
+                        android:layout_marginBottom="20dp"
                         android:text="@string/home_title"
                         android:textSize="20sp"
                         android:textStyle="bold"
-                        android:textColor="@color/text_primary"
-                        android:layout_marginBottom="20dp" />
+                        android:textColor="@color/text_primary" />
 
-                    <Button
-                        android:id="@+id/btn_normal_practice"
+                    <!-- 三个按钮垂直居中且间隔相等 -->
+                    <LinearLayout
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/btn_normal_practice"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        app:strokeColor="@color/destructive"
-                        android:textColor="@color/destructive"
-                        android:layout_marginBottom="12dp" />
+                        android:layout_height="0dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:gravity="center"
+                        android:paddingHorizontal="16dp">
 
-                    <Button
-                        android:id="@+id/btn_timed_practice"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/btn_timed_practice"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        app:strokeColor="@color/destructive"
-                        android:textColor="@color/destructive"
-                        android:layout_marginBottom="12dp" />
+                        <Button
+                            android:id="@+id/btn_normal_practice"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:minHeight="64dp"
+                            android:paddingVertical="18dp"
+                            android:text="@string/btn_normal_practice"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            app:strokeColor="@color/destructive"
+                            android:textColor="@color/destructive"
+                            android:layout_marginBottom="36dp" />
 
-                    <Button
-                        android:id="@+id/btn_go_content_list"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/btn_add_content"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        app:strokeColor="@color/destructive"
-                        android:textColor="@color/destructive" />
+                        <Button
+                            android:id="@+id/btn_timed_practice"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:minHeight="64dp"
+                            android:paddingVertical="18dp"
+                            android:text="@string/btn_timed_practice"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            app:strokeColor="@color/destructive"
+                            android:textColor="@color/destructive"
+                            android:layout_marginBottom="36dp" />
+
+                        <Button
+                            android:id="@+id/btn_go_content_list"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:minHeight="64dp"
+                            android:paddingVertical="18dp"
+                            android:text="@string/btn_add_content"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            app:strokeColor="@color/destructive"
+                            android:textColor="@color/destructive" />
+
+                    </LinearLayout>
 
                 </LinearLayout>
             </ScrollView>

@@ -13,6 +13,11 @@ body{background:var(--card-bg);color:var(--text-primary);font-size:14px;max-widt
 .page.active{display:block}
 .btn-red{display:block;width:100%;padding:14px;border:2px solid #E65C53;border-radius:var(--radius-md);background:transparent;color:#E65C53;font-size:15px;font-weight:500;text-align:center;margin-bottom:12px;transition:background .15s,color .15s;-webkit-tap-highlight-color:transparent}
 .btn-red:active{background:#E65C53;color:#fff}
+#page-home{padding-top:24px}
+#page-home.active{display:flex;flex-direction:column;align-items:center}
+.home-title{font-size:20px;font-weight:600;color:var(--text-primary);text-align:center;margin-bottom:20px}
+.home-buttons{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:36px;width:100%;padding:0 16px}
+.home-buttons .btn-red{width:100%;max-width:320px;margin:0;padding:18px 14px}
 .btn-sm{display:inline-block;padding:6px 14px;border:1.5px solid #E65C53;border-radius:var(--radius-sm);background:transparent;color:#E65C53;font-size:12px;font-weight:500;transition:background .15s,color .15s;-webkit-tap-highlight-color:transparent}
 .btn-sm:active{background:#E65C53;color:#fff}
 .btn-primary{display:inline-block;padding:8px 20px;border:0;border-radius:var(--radius-md);background:#E65C53;color:#fff;font-size:13px;font-weight:500;transition:background .15s;-webkit-tap-highlight-color:transparent}
@@ -143,10 +148,12 @@ body{background:var(--card-bg);color:var(--text-primary);font-size:14px;max-widt
 <body>
 
 <div id="page-home" class="page active">
-  <div class="top-bar"><span class="title">练习</span></div>
-  <button class="btn-red" data-page="practice" data-mode="normal">普通打字练习</button>
-  <button class="btn-red" data-page="practice" data-mode="timed">一分钟限时练</button>
-  <button class="btn-red" data-page="contentList">添加练习内容</button>
+  <div class="home-title">练习</div>
+  <div class="home-buttons">
+    <button class="btn-red" data-page="practice" data-mode="normal">普通打字练习</button>
+    <button class="btn-red" data-page="practice" data-mode="timed">一分钟限时练</button>
+    <button class="btn-red" data-page="contentList" data-select="1">添加练习内容</button>
+  </div>
 </div>
 
 <div id="page-practice" class="page">
