@@ -7,13 +7,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.style.StrikethroughSpan
 import android.text.TextWatcher
-import android.text.style.ForegroundColorSpan
-import android.text.style.UnderlineSpan
-import android.text.style.BackgroundColorSpan
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
@@ -431,49 +425,14 @@ class MainActivity : AppCompatActivity() {
         cursorVisible = true
 
         val text = content.getString("content")
-        typingTextView.text = buildSpannable(text)
+        typingTextView.setTextData(text, userInput, cursorVisible)
         startCursorBlink()
-    }
-
-    private fun buildSpannable(text: String): SpannableString {
-        val spannable = SpannableString(text)
-        val inputLen = userInput.length
-
-        for (i in text.indices) {
-            if (i < inputLen) {
-                if (i < userInput.length && userInput[i] == text[i]) {
-                    spannable.setSpan(
-                        ForegroundColorSpan(Color.parseColor("#40B43E")),
-                        i, i + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
-                } else {
-                    spannable.setSpan(
-                        ForegroundColorSpan(Color.parseColor("#E65C53")),
-                        i, i + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
-                    spannable.setSpan(
-                        StrikethroughSpan(),
-                        i, i + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
-                }
-            } else {
-                spannable.setSpan(
-                    ForegroundColorSpan(Color.parseColor("#59000000")),
-                    i, i + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
-            }
-        }
-
-        return spannable
     }
 
     private fun updateTextDisplay() {
         val content = getContent(currentContentId) ?: return
         val text = content.getString("content")
-        typingTextView.text = buildSpannable(text)
-        typingTextView.cursorPosition = userInput.length
-        typingTextView.showCursor = cursorVisible
-        typingTextView.invalidate()
+        typingTextView.setTextData(text, userInput, cursorVisible)
         autoScrollToCurrent()
     }
 
