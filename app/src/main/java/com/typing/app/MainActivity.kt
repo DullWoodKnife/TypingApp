@@ -13,6 +13,7 @@ import android.text.style.StrikethroughSpan
 import android.text.TextWatcher
 import android.text.style.ForegroundColorSpan
 import android.text.style.UnderlineSpan
+import android.text.style.BackgroundColorSpan
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
@@ -73,7 +74,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statAcc: TextView
     private lateinit var practiceHint: TextView
     private lateinit var typingScrollView: ScrollView
-    private lateinit var typingTextView: TextView
+    private lateinit var typingTextView: TypingTextView
     private lateinit var hiddenInput: EditText
 
     // Content list
@@ -441,13 +442,11 @@ class MainActivity : AppCompatActivity() {
         for (i in text.indices) {
             if (i < inputLen) {
                 if (i < userInput.length && userInput[i] == text[i]) {
-                    // Correct
                     spannable.setSpan(
                         ForegroundColorSpan(Color.parseColor("#40B43E")),
                         i, i + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                     )
                 } else {
-                    // Wrong
                     spannable.setSpan(
                         ForegroundColorSpan(Color.parseColor("#E65C53")),
                         i, i + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -457,20 +456,7 @@ class MainActivity : AppCompatActivity() {
                         i, i + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                     )
                 }
-            } else if (i == inputLen) {
-                // Current (cursor position)
-                spannable.setSpan(
-                    ForegroundColorSpan(Color.parseColor("#CC000000")),
-                    i, i + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
-                if (cursorVisible) {
-                    spannable.setSpan(
-                        UnderlineSpan(),
-                        i, i + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
-                }
             } else {
-                // Pending
                 spannable.setSpan(
                     ForegroundColorSpan(Color.parseColor("#59000000")),
                     i, i + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -485,6 +471,9 @@ class MainActivity : AppCompatActivity() {
         val content = getContent(currentContentId) ?: return
         val text = content.getString("content")
         typingTextView.text = buildSpannable(text)
+        typingTextView.cursorPosition = userInput.length
+        typingTextView.showCursor = cursorVisible
+        typingTextView.invalidate()
         autoScrollToCurrent()
     }
 

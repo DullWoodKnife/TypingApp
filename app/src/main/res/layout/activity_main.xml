@@ -248,7 +248,7 @@
                     android:background="@android:color/transparent"
                     android:layout_marginBottom="8dp">
 
-                    <TextView
+                    <com.typing.app.TypingTextView
                         android:id="@+id/typing_text_view"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
