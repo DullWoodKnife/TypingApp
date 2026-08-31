@@ -14,39 +14,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Auto increment version
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Read current versionCode and versionName
-          CURRENT_CODE=$(grep -oP 'versionCode \K\d+' app/build.gradle)
-          CURRENT_NAME=$(grep -oP 'versionName "\K[^"]+' app/build.gradle)
-          
-          # Increment versionCode
-          NEW_CODE=$((CURRENT_CODE + 1))
-          
-          # Increment last digit of versionName (e.g., 1.0 -> 1.1)
-          IFS='.' read -ra PARTS <<< "$CURRENT_NAME"
-          LAST_PART=${PARTS[-1]}
-          NEW_LAST_PART=$((LAST_PART + 1))
-          PARTS[-1]=$NEW_LAST_PART
-          NEW_NAME=$(IFS='.'; echo "${PARTS[*]}")
-          
-          # Update build.gradle
-          sed -i "s/versionCode $CURRENT_CODE/versionCode $NEW_CODE/" app/build.gradle
-          sed -i "s/versionName \"$CURRENT_NAME\"/versionName \"$NEW_NAME\"/" app/build.gradle
-          
-          echo "Version bumped: $CURRENT_NAME ($CURRENT_CODE) -> $NEW_NAME ($NEW_CODE)"
-          
-          # Configure git and commit
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add app/build.gradle
-          git commit -m "Auto version bump to $NEW_NAME ($NEW_CODE) [skip ci]"
-          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
