@@ -10,12 +10,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       - name: Auto increment version
@@ -45,7 +46,7 @@ jobs:
           git config user.email "actions@github.com"
           git add app/build.gradle
           git commit -m "Auto version bump to $NEW_NAME ($NEW_CODE) [skip ci]"
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}
+          git push
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
