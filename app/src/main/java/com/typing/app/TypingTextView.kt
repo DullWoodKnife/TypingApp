@@ -139,17 +139,16 @@ class TypingTextView @JvmOverloads constructor(
             )
         }
 
-        // === Blue cursor on separator line ===
+        // === Blue cursor on user input line ===
         if (cursorVisible && userInput.length <= originalText.length) {
             val cursorRow = userInput.length / CHARS_PER_ROW
             val cursorCol = userInput.length % CHARS_PER_ROW
             val cursorX = paddingLeft + cursorCol * charWidth
 
             val rowTop = topPadding + cursorRow * rowHeight
-            val lineY = rowTop + rowHeight * 0.90f
-            val cursorHeight = rowHeight * 0.15f
-            val cursorTop = lineY - cursorHeight
-            val cursorBottom = lineY
+            val inputBaseline = rowTop + rowHeight * 0.55f
+            val cursorTop = inputBaseline + fm.ascent - 4f
+            val cursorBottom = inputBaseline + fm.descent + 2f
 
             canvas.drawLine(cursorX, cursorTop, cursorX, cursorBottom, cursorPaint)
         }
