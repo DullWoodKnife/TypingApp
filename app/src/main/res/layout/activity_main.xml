@@ -228,16 +228,37 @@
                     </LinearLayout>
                 </LinearLayout>
 
-                <!-- Hint -->
-                <TextView
-                    android:id="@+id/practice_hint"
+                <!-- Hint + Wubi86 拆字提示（右侧） -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/practice_hint"
-                    android:textSize="12sp"
-                    android:textColor="@color/text_secondary"
-                    android:gravity="center"
-                    android:layout_marginBottom="8dp" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+
+                    <TextView
+                        android:id="@+id/practice_hint"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/practice_hint"
+                        android:textSize="12sp"
+                        android:textColor="@color/text_secondary"
+                        android:gravity="center" />
+
+                    <!-- 光标当前位置汉字的86版五笔拆字：完整码在前，简码逗号隔开跟后，如 仞 WVYY,WVY -->
+                    <TextView
+                        android:id="@+id/wubi_hint"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_secondary"
+                        android:fontFamily="monospace"
+                        android:layout_marginStart="8dp"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+                </LinearLayout>
 
                 <!-- Typing area -->
                 <ScrollView

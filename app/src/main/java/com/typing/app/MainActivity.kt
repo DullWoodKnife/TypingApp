@@ -67,6 +67,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statSpeed: TextView
     private lateinit var statAcc: TextView
     private lateinit var practiceHint: TextView
+    private lateinit var wubiHint: TextView
+    private var wubiTable: HashMap<String, String>? = null
     private lateinit var typingScrollView: ScrollView
     private lateinit var typingTextView: TypingTextView
     private lateinit var hiddenInput: EditText
@@ -187,6 +189,7 @@ class MainActivity : AppCompatActivity() {
         statSpeed = findViewById(R.id.stat_speed)
         statAcc = findViewById(R.id.stat_acc)
         practiceHint = findViewById(R.id.practice_hint)
+        wubiHint = findViewById(R.id.wubi_hint)
         typingScrollView = findViewById(R.id.typing_scroll_view)
         typingTextView = findViewById(R.id.typing_text_view)
         hiddenInput = findViewById(R.id.hidden_input)
@@ -394,6 +397,44 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ===== 86版五笔拆字提示 =====
+
+    // 加载 assets/wubi86.txt：覆盖2013年《通用规范汉字表》全部8105字
+    // 每行格式：字\t全码,简码…（完整码在前，简码逗号隔开跟后，如：仞\tWVYY,WVY）
+    private fun loadWubiTable(): HashMap<String, String> {
+        val map = HashMap<String, String>()
+        try {
+            assets.open("wubi86.txt").bufferedReader().useLines { lines ->
+                for (line in lines) {
+                    val t = line.trim()
+                    if (t.isEmpty()) continue
+                    val idx = t.indexOf('\t')
+                    if (idx > 0) map[t.substring(0, idx)] = t.substring(idx + 1)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return map
+    }
+
+    private fun getWubiCode(ch: Char): String {
+        val table = wubiTable ?: loadWubiTable().also { wubiTable = it }
+        return table[ch.toString()] ?: ""
+    }
+
+    // 在"正在输入…"同行最右侧，显示光标当前位置汉字的86版五笔拆字（完整码,简码）
+    private fun updateWubiHint(text: String) {
+        val idx = userInput.length
+        var code = ""
+        if (!isFinished && idx < text.length) {
+            code = getWubiCode(text[idx])
+        }
+        if (wubiHint.text.toString() != code) {
+            wubiHint.text = code
+        }
+    }
+
     // ===== Practice =====
 
     private fun initPractice() {
@@ -426,6 +467,7 @@ class MainActivity : AppCompatActivity() {
 
         val text = content.getString("content")
         typingTextView.setTextData(text, userInput, cursorVisible)
+        updateWubiHint(text)
         startCursorBlink()
     }
 
@@ -433,6 +475,7 @@ class MainActivity : AppCompatActivity() {
         val content = getContent(currentContentId) ?: return
         val text = content.getString("content")
         typingTextView.setTextData(text, userInput, cursorVisible)
+        updateWubiHint(text)
         autoScrollToCurrent()
     }
 
