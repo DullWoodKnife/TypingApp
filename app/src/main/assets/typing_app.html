@@ -31,7 +31,7 @@ body{background:var(--card-bg);color:var(--text-primary);font-size:14px;max-widt
 .stat-card .stat-val{font-size:18px;font-weight:600;color:var(--text-primary);line-height:1.3}
 .stat-card .stat-label{font-size:11px;color:var(--text-secondary);margin-top:2px}
 
-/* ===== 统一打字区域样式 ===== */
+/* ===== 打字区域样式 ===== */
 .practice-board{
   background:var(--intensity-4);
   border-radius:var(--radius-md);
@@ -51,6 +51,10 @@ body{background:var(--card-bg);color:var(--text-primary);font-size:14px;max-widt
   outline:none;
   -webkit-user-select:none;
   user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.practice-board:focus{
+  box-shadow:inset 0 0 0 2px #E65C53;
 }
 
 /* 每一行文字 */
@@ -72,12 +76,12 @@ body{background:var(--card-bg);color:var(--text-primary);font-size:14px;max-widt
 }
 
 /* 字符状态 */
-.ty-char.correct{color:#40B43E}           /* 正确：绿色 */
-.ty-char.wrong{color:#E65C53;text-decoration:line-through;text-decoration-thickness:1.5px} /* 错误：红色+删除线 */
-.ty-char.pending{color:var(--text-tertiary)} /* 未输入：灰色 */
+.ty-char.correct{color:#40B43E}
+.ty-char.wrong{color:#E65C53;text-decoration:line-through;text-decoration-thickness:1.5px}
+.ty-char.pending{color:var(--text-tertiary)}
 .ty-char.current{
   color:var(--text-primary);
-  border-bottom:2px solid #E65C53;         /* 当前光标：红色下划线 */
+  border-bottom:2px solid #E65C53;
   animation:cursor-blink 1s step-end infinite;
 }
 @keyframes cursor-blink{50%{border-bottom-color:transparent}}
@@ -132,6 +136,8 @@ body{background:var(--card-bg);color:var(--text-primary);font-size:14px;max-widt
 .challenge-stat{text-align:center}
 .challenge-stat .cs-val{font-size:20px;font-weight:600;color:var(--text-primary)}
 .challenge-stat .cs-label{font-size:11px;color:var(--text-secondary);margin-top:2px}
+/* 隐藏输入框：仅用于触发Android软键盘，完全不可见 */
+#hiddenInput{position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;border:0;outline:0;background:transparent;color:transparent;padding:0;margin:0;overflow:hidden;pointer-events:none;z-index:-1;font-size:1px;line-height:1px}
 </style>
 </head>
 <body>
@@ -157,10 +163,10 @@ body{background:var(--card-bg);color:var(--text-primary);font-size:14px;max-widt
   <div style="text-align:center;margin-bottom:8px">
     <span style="font-size:12px;color:var(--text-secondary);" id="practiceHint">点击下方文字区域开始打字</span>
   </div>
-  <!-- 统一打字区域：参考文字和输入合为一体 -->
-  <div class="practice-board" id="practiceBoard" tabindex="0"></div>
-  <!-- 隐藏的输入框，用于捕获键盘输入 -->
-  <textarea id="hiddenInput" style="position:absolute;left:-9999px;top:-9999px;opacity:0;height:1px;width:1px;overflow:hidden;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+  <!-- 打字区域：显示参考文字和输入反馈 -->
+  <div class="practice-board" id="practiceBoard"></div>
+  <!-- 隐藏输入框：仅用于触发Android软键盘，完全不可见 -->
+  <textarea id="hiddenInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-hidden="true" tabindex="-1"></textarea>
   <div style="display:flex;gap:8px;margin-top:12px;justify-content:center">
     <button class="btn-sm" id="btnRestart" style="border-color:var(--intensity-12);color:var(--text-secondary)">重新开始</button>
     <button class="btn-sm" id="btnBackHome" style="border-color:var(--intensity-12);color:var(--text-secondary)">返回首页</button>
@@ -272,9 +278,6 @@ function defaultData(){
 var data=getData();
 var currentContentId=data.contents[0]&&data.contents[0].id||'';
 var practiceMode='normal';
-var cursorPos=0;
-var correctCount=0;
-var wrongCount=0;
 var timer=null;
 var startTime=0;
 var elapsed=0;
@@ -284,6 +287,8 @@ var editId=null;
 var isComposing=false;
 var totalChars=0;
 var charsPerLine=22;
+// 用户输入的文本缓冲区
+var userInput='';
 
 var pages=document.querySelectorAll('.page');
 var navItems=document.querySelectorAll('.nav-item');
@@ -317,8 +322,8 @@ function renderContentList(selectMode){
     html+='<li class="content-item">'+
       '<span class="ci-title" data-action="view" data-id="'+c.id+'">'+c.title+'</span>'+
       '<div class="ci-actions">'+
-        '<button data-action="edit" data-id="'+c.id+'" title="编辑">✏️</button>'+
-        '<button data-action="delete" data-id="'+c.id+'" title="删除">🗑️</button>'+
+        '<button data-action="edit" data-id="'+c.id+'" title="编辑">\u270F\uFE0F</button>'+
+        '<button data-action="delete" data-id="'+c.id+'" title="\u5220\u9664">\uD83D\uDDD1\uFE0F</button>'+
       '</div></li>';
   });
   html+='</ul>';
@@ -349,7 +354,7 @@ function viewContent(id){
   var c=getContent(id);
   if(!c)return;
   document.getElementById('detailTitle').textContent=c.title;
-  document.getElementById('detailMeta').textContent='共 '+c.content.length+' 字';
+  document.getElementById('detailMeta').textContent='\u5171 '+c.content.length+' \u5B57';
   document.getElementById('detailContent').textContent=c.content;
   showPage('contentDetail');
 }
@@ -360,10 +365,10 @@ function openEdit(id){
   var inputContent=document.getElementById('editInputContent');
   if(editId){
     var c=getContent(editId);
-    if(c){titleEl.textContent='编辑内容';inputTitle.value=c.title;inputContent.value=c.content;}
-    else{editId=null;titleEl.textContent='添加练习内容';inputTitle.value='';inputContent.value='';}
+    if(c){titleEl.textContent='\u7F16\u8F91\u5185\u5BB9';inputTitle.value=c.title;inputContent.value=c.content;}
+    else{editId=null;titleEl.textContent='\u6DFB\u52A0\u7EC3\u4E60\u5185\u5BB9';inputTitle.value='';inputContent.value='';}
   }else{
-    titleEl.textContent='添加练习内容';
+    titleEl.textContent='\u6DFB\u52A0\u7EC3\u4E60\u5185\u5BB9';
     inputTitle.value='';
     inputContent.value='';
   }
@@ -372,7 +377,7 @@ function openEdit(id){
 function saveContent(){
   var title=document.getElementById('editInputTitle').value.trim();
   var content=document.getElementById('editInputContent').value.trim();
-  if(!title||!content){showModal('提示','标题和内容不能为空');return;}
+  if(!title||!content){showModal('\u63D0\u793A','\u6807\u9898\u548C\u5185\u5BB9\u4E0D\u80FD\u4E3A\u7A7A');return;}
   data=getData();
   if(editId){
     var idx=getContentIndex(editId);
@@ -386,7 +391,7 @@ function saveContent(){
   renderContentList(false);
 }
 function deleteContent(id){
-  if(!confirm('确定要删除此练习内容吗？'))return;
+  if(!confirm('\u786E\u5B9A\u8981\u5220\u9664\u6B64\u7EC3\u4E60\u5185\u5BB9\uFF1F'))return;
   data=getData();
   var idx=getContentIndex(id);
   if(idx>=0){
@@ -397,7 +402,7 @@ function deleteContent(id){
   }
 }
 
-/* ===== 统一渲染：打字内容和输入合为一体 ===== */
+/* ===== 渲染打字板：只显示参考文字和光标 ===== */
 function renderBoard(text){
   var board=document.getElementById('practiceBoard');
   totalChars=text.length;
@@ -412,7 +417,6 @@ function renderBoard(text){
     html+='<div class="ty-line" data-line="'+li+'">';
     for(var ci=0;ci<line.length;ci++){
       var cls=globalIdx===0?'ty-char current':'ty-char pending';
-      // 转义HTML特殊字符
       var ch=line[ci];
       var escaped=ch.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       html+='<span class="'+cls+'" data-idx="'+globalIdx+'">'+escaped+'</span>';
@@ -424,75 +428,87 @@ function renderBoard(text){
 }
 
 /* ===== 更新字符状态显示 ===== */
-function updateDisplay(text,valLen){
+function updateCharDisplay(text){
   var allChars=document.querySelectorAll('.ty-char');
+  var valLen=userInput.length;
+  // 计算错误位置
   var wrongSet={};
-  
-  // 计算正确和错误
   for(var i=0;i<valLen&&i<text.length;i++){
-    // 通过隐藏input获取实际输入值
+    if(userInput[i]!==text[i]){
+      wrongSet[i]=true;
+    }
   }
-  
-  // 重置所有字符状态
   for(var i=0;i<allChars.length;i++){
     var idx=parseInt(allChars[i].dataset.idx)||0;
     allChars[i].className='ty-char';
-    
     if(i<valLen&&i<text.length){
-      if(wrongSet[i]){
-        allChars[i].classList.add('wrong');
-      }else{
-        allChars[i].classList.add('correct');
-      }
+      if(wrongSet[i])allChars[i].classList.add('wrong');
+      else allChars[i].classList.add('correct');
     }else if(i===valLen&&i<text.length){
       allChars[i].classList.add('current');
     }else{
       allChars[i].classList.add('pending');
     }
   }
-  
-  // 标记已完成的行
+  // 标记已完成行
   var lines=document.querySelectorAll('.ty-line');
-  var completedLineCount=Math.floor(valLen/charsPerLine);
+  var compLine=Math.floor(valLen/charsPerLine);
   for(var l=0;l<lines.length;l++){
-    if(l<completedLineCount) lines[l].classList.add('completed');
+    if(l<compLine)lines[l].classList.add('completed');
     else lines[l].classList.remove('completed');
+  }
+  // 滚动到当前行
+  var curChar=document.querySelector('.ty-char.current');
+  if(curChar){
+    var lineEl=curChar.closest('.ty-line')||curChar;
+    var board=document.getElementById('practiceBoard');
+    var lineTop=lineEl.offsetTop-board.offsetTop;
+    if(lineTop>board.clientHeight*0.5||lineTop<0){
+      board.scrollTop=Math.max(0,lineTop-board.clientHeight*0.3);
+    }
   }
 }
 
 function initPractice(){
   var c=getContent(currentContentId);
   if(!c){
-    showModal('提示','请先选择练习内容',function(){showPage('contentList');renderContentList(true);});
+    showModal('\u63D0\u793A','\u8BF7\u5148\u9009\u62E9\u7EC3\u4E60\u5185\u5BB9',function(){showPage('contentList');renderContentList(true);});
     return;
   }
   stopTimer();
-  cursorPos=0;correctCount=0;wrongCount=0;isRunning=false;isFinished=false;elapsed=0;
+  isRunning=false;isFinished=false;elapsed=0;
+  userInput='';
   document.getElementById('statTime').textContent='00:00';
   document.getElementById('statTime').classList.remove('timer-warning');
   document.getElementById('statProg').textContent='0%';
   document.getElementById('statSpeed').textContent='0';
   document.getElementById('statAcc').textContent='0%';
-  document.getElementById('practiceHint').textContent='点击下方文字区域开始打字';
-  var input=document.getElementById('hiddenInput');
-  input.value='';
-  input.disabled=false;
+  document.getElementById('practiceHint').textContent='\u70B9\u51FB\u4E0B\u65B9\u6587\u5B57\u533A\u57DF\u5F00\u59CB\u6253\u5B57';
+  var hInput=document.getElementById('hiddenInput');
+  hInput.value='';
   renderBoard(c.content);
   saveData(data);
-  
-  // 自动聚焦到隐藏的输入框
-  setTimeout(function(){ input.focus(); }, 100);
+}
+
+function recalcStats(text){
+  var correctCount=0,wrongCount=0;
+  for(var i=0;i<userInput.length&&i<text.length;i++){
+    if(userInput[i]===text[i])correctCount++;
+    else wrongCount++;
+  }
+  return {correct:correctCount,wrong:wrongCount};
 }
 
 function updateStats(text){
-  var totalCharPos=cursorPos;
+  var stats=recalcStats(text);
+  var totalCharPos=userInput.length;
   var totalChars=text.length;
   var prog=totalChars>0?Math.min(100,Math.round(totalCharPos/totalChars*100)):0;
   document.getElementById('statProg').textContent=prog+'%';
-  var acc=totalCharPos>0?Math.round(correctCount/(correctCount+wrongCount)*100):0;
+  var acc=totalCharPos>0?Math.round(stats.correct/(stats.correct+stats.wrong)*100):0;
   document.getElementById('statAcc').textContent=acc+'%';
   var secs=elapsed>0?elapsed:1;
-  var speed=Math.round(correctCount/secs*60);
+  var speed=Math.round(stats.correct/secs*60);
   document.getElementById('statSpeed').textContent=speed;
   if(practiceMode==='timed'){
     var remain=60-elapsed;
@@ -502,80 +518,48 @@ function updateStats(text){
     if(remain<=10)document.getElementById('statTime').classList.add('timer-warning');
     else document.getElementById('statTime').classList.remove('timer-warning');
   }
+  return stats;
 }
 
+/* ===== 核心：通过 textarea 的 input 事件处理输入 ===== */
 function handleInput(e){
   if(isFinished||isComposing)return;
-  var input=document.getElementById('hiddenInput');
-  var val=input.value;
+  var hInput=document.getElementById('hiddenInput');
+  var val=hInput.value;
   var c=getContent(currentContentId);
   if(!c||!c.content)return;
   var text=c.content;
+
   if(!isRunning&&val.length>0){
     isRunning=true;
     startTime=Date.now();
     elapsed=0;
-    document.getElementById('practiceHint').textContent='正在输入...';
+    document.getElementById('practiceHint').textContent='\u6B63\u5728\u8F93\u5165...';
     startTimer();
   }
-  var newPos=val.length;
-  if(newPos>text.length){
-    input.value=text.substring(0,text.length);
-    val=input.value;
-    newPos=text.length;
+
+  // 限制输入长度不超过原文
+  if(val.length>text.length){
+    val=val.substring(0,text.length);
+    hInput.value=val;
   }
-  cursorPos=0;correctCount=0;wrongCount=0;
-  var wrongSet={};
-  for(var i=0;i<newPos&&i<text.length;i++){
-    if(val[i]===text[i]){correctCount++;cursorPos=i+1;}
-    else{wrongCount++;wrongSet[i]=true;}
-  }
-  
-  /* ===== 核心更新：统一显示 ===== */
-  var allChars=document.querySelectorAll('.ty-char');
-  for(var i=0;i<allChars.length;i++){
-    var idx=parseInt(allChars[i].dataset.idx)||0;
-    allChars[i].className='ty-char';
-    if(i<newPos&&i<text.length){
-      if(wrongSet[i])allChars[i].className+=' wrong';
-      else allChars[i].className+=' correct';
-    }else if(i===newPos&&i<text.length){
-      allChars[i].className+=' current';
-    }else{
-      allChars[i].className+=' pending';
-    }
-  }
-  
-  // 标记已完成行
-  var lines=document.querySelectorAll('.ty-line');
-  var compLine=Math.floor(newPos/charsPerLine);
-  for(var l=0;l<lines.length;l++){
-    if(l<compLine)lines[l].classList.add('completed');
-    else lines[l].classList.remove('completed');
-  }
-  
-  // 滚动到当前行
-  var curLineEl=document.querySelector('.ty-line.current')||document.querySelector('.ty-char.current');
-  if(curLineEl){
-    var lineEl=curLineEl.closest('.ty-line')||curLineEl;
-    var board=document.getElementById('practiceBoard');
-    var lineTop=lineEl.offsetTop-board.offsetTop;
-    if(lineTop>board.clientHeight*0.5||lineTop<0){
-      board.scrollTop=Math.max(0,lineTop-board.clientHeight*0.3);
-    }
-  }
-  
+
+  userInput=val;
+  var stats=recalcStats(text);
+  updateCharDisplay(text);
   updateStats(text);
-  if(cursorPos>=text.length&&!isFinished){
+
+  // 检查是否完成
+  if(userInput.length>=text.length&&!isFinished){
     isFinished=true;
     stopTimer();
-    input.disabled=true;
-    document.getElementById('practiceHint').textContent='已完成！';
+    hInput.blur();
+    document.getElementById('practiceHint').textContent='\u5DF2\u5B8C\u6210\uFF01';
     var secs=elapsed>0?elapsed:1;
-    var speed=Math.round(correctCount/secs*60);
-    var acc=correctCount+wrongCount>0?Math.round(correctCount/(correctCount+wrongCount)*100):0;
-    saveRecord(correctCount,acc,speed);
-    showModal('练习完成！','速度：'+speed+' 字/分<br>正确率：'+acc+'%<br>正确：'+correctCount+' 字<br>错误：'+wrongCount+' 字<br>用时：'+secs+' 秒',function(){updateChallengePage();});
+    var speed=Math.round(stats.correct/secs*60);
+    var acc=stats.correct+stats.wrong>0?Math.round(stats.correct/(stats.correct+stats.wrong)*100):0;
+    saveRecord(stats.correct,acc,speed);
+    showModal('\u7EC3\u4E60\u5B8C\u6210\uFF01','\u901F\u5EA6\uFF1A'+speed+' \u5B57/\u5206<br>\u6B63\u786E\u7387\uFF1A'+acc+'%<br>\u6B63\u786E\uFF1A'+stats.correct+' \u5B57<br>\u9519\u8BEF\uFF1A'+stats.wrong+' \u5B57<br>\u7528\u65F6\uFF1A'+secs+' \u79D2',function(){updateChallengePage();});
   }
 }
 
@@ -608,24 +592,21 @@ function stopTimer(){
 }
 function finishTimedPractice(){
   isRunning=false;isFinished=true;
-  document.getElementById('hiddenInput').disabled=true;
-  document.getElementById('practiceHint').textContent='时间到！';
+  var hInput=document.getElementById('hiddenInput');
+  hInput.blur();
+  document.getElementById('practiceHint').textContent='\u65F6\u95F4\u5230\uFF01';
   var c=getContent(currentContentId);
   if(!c)return;
   var text=c.content;
-  var val=document.getElementById('hiddenInput').value;
-  var correct=0,wrong=0;
-  for(var i=0;i<val.length&&i<text.length;i++){
-    if(val[i]===text[i])correct++;else wrong++;
-  }
-  correctCount=correct;wrongCount=wrong;
-  cursorPos=val.length;
+  userInput=hInput.value;
+  var stats=recalcStats(text);
+  updateCharDisplay(text);
   var secs=60;
-  var speed=Math.round(correct/secs*60);
-  var acc=correct+wrong>0?Math.round(correct/(correct+wrong)*100):0;
-  saveRecord(correct,acc,speed);
+  var speed=Math.round(stats.correct/secs*60);
+  var acc=stats.correct+stats.wrong>0?Math.round(stats.correct/(stats.correct+stats.wrong)*100):0;
+  saveRecord(stats.correct,acc,speed);
   updateStats(text);
-  showModal('时间到！','速度：'+speed+' 字/分<br>正确率：'+acc+'%<br>正确：'+correct+' 字<br>错误：'+wrong+' 字',function(){updateChallengePage();});
+  showModal('\u65F6\u95F4\u5230\uFF01','\u901F\u5EA6\uFF1A'+speed+' \u5B57/\u5206<br>\u6B63\u786E\u7387\uFF1A'+acc+'%<br>\u6B63\u786E\uFF1A'+stats.correct+' \u5B57<br>\u9519\u8BEF\uFF1A'+stats.wrong+' \u5B57',function(){updateChallengePage();});
 }
 function saveRecord(correct,acc,speed){
   data=getData();
@@ -633,13 +614,13 @@ function saveRecord(correct,acc,speed){
   data.records.push({
     id:'r'+Date.now(),
     contentId:currentContentId,
-    contentTitle:c?c.title:'未知',
+    contentTitle:c?c.title:'\u672A\u77E5',
     mode:practiceMode,
     speed:speed,
     accuracy:acc,
     correctChars:correct,
-    wrongChars:wrongCount,
-    totalChars:correct+wrongCount,
+    wrongChars:recalcStats(getContent(currentContentId)?getContent(currentContentId).content:'').wrong,
+    totalChars:correct+recalcStats(getContent(currentContentId)?getContent(currentContentId).content:'').wrong,
     duration:elapsed,
     date:Date.now()
   });
@@ -649,21 +630,21 @@ function renderRecords(){
   var wrap=document.getElementById('recordsWrap');
   data=getData();
   if(!data.records.length){
-    wrap.innerHTML='<div class="empty-state">暂无成绩记录，快去练习吧！</div>';
+    wrap.innerHTML='<div class="empty-state">\u6682\u65E0\u6210\u7EE9\u8BB0\u5F55\uFF0C\u5FEB\u53BB\u7EC3\u4E60\u5427\uFF01</div>';
     return;
   }
   var recs=[].concat(data.records).reverse();
   var html='';
   recs.forEach(function(r){
     var d=new Date(r.date);
-    var dateStr=(d.getMonth()+1)+'月'+d.getDate()+'日 '+(d.getHours()<10?'0':'')+d.getHours()+':'+(d.getMinutes()<10?'0':'')+d.getMinutes();
-    var modeLabel=r.mode==='timed'?'限时':'普通';
-    html+='<div class="record-item"><div class="ri-left"><div class="ri-title">'+r.contentTitle+'</div><div class="ri-meta">'+dateStr+' &middot; '+modeLabel+'模式 &middot; 正确率'+r.accuracy+'%</div></div><div class="ri-right"><div class="speed">'+r.speed+'</div><div>字/分</div></div></div>';
+    var dateStr=(d.getMonth()+1)+'\u6708'+d.getDate()+'\u65E5 '+(d.getHours()<10?'0':'')+d.getHours()+':'+(d.getMinutes()<10?'0':'')+d.getMinutes();
+    var modeLabel=r.mode==='timed'?'\u9650\u65F6':'\u666E\u901A';
+    html+='<div class="record-item"><div class="ri-left"><div class="ri-title">'+r.contentTitle+'</div><div class="ri-meta">'+dateStr+' &middot; '+modeLabel+'\u6A21\u5F0F &middot; \u6B63\u786E\u7387'+r.accuracy+'%</div></div><div class="ri-right"><div class="speed">'+r.speed+'</div><div>\u5B57/\u5206</div></div></div>';
   });
   wrap.innerHTML=html;
 }
 function clearRecords(){
-  if(!confirm('确定要清空所有成绩记录吗？'))return;
+  if(!confirm('\u786E\u5B9A\u8981\u6E05\u7A7A\u6240\u6709\u6210\u7EE9\u8BB0\u5F55\uFF1F'))return;
   data=getData();
   data.records=[];
   saveData(data);
@@ -677,13 +658,13 @@ function showModal(title,body,cb){
 }
 
 function getRank(score){
-  if(score>=1000)return {name:'大师',star:'',icon:'🏆',cls:'master',next:null,current:1000};
-  if(score>=600)return {name:'钻石',star:'',icon:'💎',cls:'diamond',next:1000,current:score};
-  if(score>=300)return {name:'黄金',star:'',icon:'🥇',cls:'gold',next:600,current:score};
-  if(score>=100)return {name:'白银',star:'',icon:'🥈',cls:'silver',next:300,current:score};
+  if(score>=1000)return {name:'\u5927\u5E08',star:'',icon:'\uD83C\uDFC6',cls:'master',next:null,current:1000};
+  if(score>=600)return {name:'\u94BB\u77F3',star:'',icon:'\uD83D\uDC8E',cls:'diamond',next:1000,current:score};
+  if(score>=300)return {name:'\u9EC4\u91D1',star:'',icon:'\uD83E\uDD47',cls:'gold',next:600,current:score};
+  if(score>=100)return {name:'\u767D\u94F6',star:'',icon:'\uD83E\uDD48',cls:'silver',next:300,current:score};
   var star=Math.floor(score/20)+1;
   if(star>5)star=5;
-  return {name:'青铜',star:star+'星',icon:'🥉',cls:'',next:100,current:score};
+  return {name:'\u9752\u94DC',star:star+'\u661F',icon:'\uD83E\uDD49',cls:'',next:100,current:score};
 }
 
 function updateChallengePage(){
@@ -705,7 +686,7 @@ function updateChallengePage(){
   icon.className='badge-icon';
   if(rank.cls)icon.classList.add(rank.cls);
   document.getElementById('badgeTitle').textContent=rank.name+' '+rank.star;
-  document.getElementById('badgeSub').textContent=rank.next?'距'+(rank.next-rank.current)+'分升至下一段位':'已达最高段位！';
+  document.getElementById('badgeSub').textContent=rank.next?'\u8DDD'+(rank.next-rank.current)+'\u5206\u5347\u81F3\u4E0B\u4E00\u6BB5\u4F4D':'\u5DF2\u8FBE\u6700\u9AD8\u6BB5\u4F4D\uFF01';
   var pct=rank.next?Math.min(100,Math.round((rank.current/rank.next)*100)):100;
   document.getElementById('rankFill').style.width=pct+'%';
   document.getElementById('rankInfo').textContent=rank.current+'/'+(rank.next||rank.current);
@@ -717,7 +698,7 @@ function updateChallengePage(){
 function startChallenge(){
   practiceMode='timed';
   currentContentId=data.contents[0]&&data.contents[0].id||'';
-  if(!currentContentId){showModal('提示','请先添加练习内容');return;}
+  if(!currentContentId){showModal('\u63D0\u793A','\u8BF7\u5148\u6DFB\u52A0\u7EC3\u4E60\u5185\u5BB9');return;}
   showPage('practice');
   initPractice();
 }
@@ -742,7 +723,7 @@ function init(){
     el.addEventListener('click',function(){
       practiceMode=this.dataset.mode||'normal';
       currentContentId=data.contents[0]&&data.contents[0].id||'';
-      if(!currentContentId){showModal('提示','请先添加练习内容');return;}
+      if(!currentContentId){showModal('\u63D0\u793A','\u8BF7\u5148\u6DFB\u52A0\u7EC3\u4E60\u5185\u5BB9');return;}
       showPage('practice');
       initPractice();
     });
@@ -755,24 +736,31 @@ function init(){
   document.getElementById('btnBackHome').addEventListener('click',function(){stopTimer();showPage('home');});
   document.getElementById('btnClearRecords').addEventListener('click',clearRecords);
   document.getElementById('btnStartChallenge').addEventListener('click',startChallenge);
-  
-  /* ===== 点击打字区域聚焦隐藏输入框 ===== */
+
+  /* ===== 点击打字板聚焦隐藏输入框 ===== */
   var board=document.getElementById('practiceBoard');
   var hInput=document.getElementById('hiddenInput');
+
   board.addEventListener('click',function(){
-    hInput.focus();
-    document.getElementById('practiceHint').textContent='正在输入...';
+    if(!isFinished){
+      hInput.focus();
+      document.getElementById('practiceHint').textContent='\u6B63\u5728\u8F93\u5165...';
+    }
   });
-  
+
   hInput.addEventListener('focus',function(){
-    if(!isFinished)document.getElementById('practiceHint').textContent='正在输入...';
+    if(!isFinished)document.getElementById('practiceHint').textContent='\u6B63\u5728\u8F93\u5165...';
   });
   hInput.addEventListener('blur',function(){
-    if(!isFinished)document.getElementById('practiceHint').textContent='点击文字区域继续打字';
+    if(!isFinished)document.getElementById('practiceHint').textContent='\u70B9\u51FB\u6587\u5B57\u533A\u57DF\u7EE7\u7EED\u6253\u5B57';
   });
   hInput.addEventListener('input',handleInput);
   hInput.addEventListener('compositionstart',function(){isComposing=true;});
-  document.getElementById('hiddenInput').addEventListener('compositionend',function(e){isComposing=false;handleInput(e);});
+  hInput.addEventListener('compositionend',function(e){
+    isComposing=false;
+    handleInput(e);
+  });
+
   modalBtn.addEventListener('click',function(){
     modalOverlay.classList.remove('active');
     if(typeof modalBtn._cb==='function')modalBtn._cb();
