@@ -798,6 +798,29 @@ function init(){
     handleInput(e);
   });
 
+  /* ===== 蓝牙/物理键盘支持：输入框失焦时直接接管按键 ===== */
+  document.addEventListener('keydown',function(e){
+    if(isFinished||isComposing)return;
+    var page=document.getElementById('page-practice');
+    if(!page||!page.classList.contains('active'))return;
+    var hInput=document.getElementById('hiddenInput');
+    if(document.activeElement===hInput)return; // 已聚焦：走原生输入流程
+    if(e.ctrlKey||e.metaKey||e.altKey)return;   // 保留系统快捷键
+    if(e.key==='Backspace'){
+      if(userInput.length>0){
+        hInput.value=userInput.slice(0,-1);
+        handleInput();
+        e.preventDefault();
+      }
+      return;
+    }
+    if(e.key&&e.key.length===1){
+      hInput.value=userInput+e.key;
+      handleInput();
+      e.preventDefault();
+    }
+  });
+
   modalBtn.addEventListener('click',function(){
     modalOverlay.classList.remove('active');
     if(typeof modalBtn._cb==='function')modalBtn._cb();

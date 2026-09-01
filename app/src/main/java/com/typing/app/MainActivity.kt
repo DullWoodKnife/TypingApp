@@ -1,6 +1,7 @@
 package com.typing.app
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
@@ -8,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
@@ -469,6 +471,11 @@ class MainActivity : AppCompatActivity() {
         typingTextView.setTextData(text, userInput, cursorVisible)
         updateWubiHint(text)
         startCursorBlink()
+
+        // 蓝牙/物理键盘已连接：进入练习页自动聚焦，无需点屏幕即可直接打字
+        if (hasHardKeyboard()) {
+            hiddenInput.requestFocus()
+        }
     }
 
     private fun updateTextDisplay() {
@@ -512,8 +519,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun focusInput() {
         hiddenInput.requestFocus()
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.showSoftInput(hiddenInput, InputMethodManager.SHOW_IMPLICIT)
+        if (hasHardKeyboard()) {
+            // 蓝牙/物理键盘已连接：不弹软键盘，保持全屏干净，直接物理按键输入
+            hideKeyboard()
+        } else {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(hiddenInput, InputMethodManager.SHOW_IMPLICIT)
+        }
         if (!isFinished) {
             practiceHint.text = getString(R.string.inputting)
         }
@@ -1124,6 +1136,51 @@ class MainActivity : AppCompatActivity() {
         currentContentId = contents.getJSONObject(0).getString("id")
         showPage("practice")
         initPractice()
+    }
+
+    // ===== 蓝牙/物理键盘支持 =====
+
+    // 是否接入了物理键盘（如蓝牙键盘）
+    private fun hasHardKeyboard(): Boolean {
+        return resources.configuration.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO
+    }
+
+    // 物理键盘直输兜底：焦点不在输入框时（如误触其他区域），直接接管按键，
+    // 走与软键盘一致的 handleInput 流程；焦点在输入框时交给系统（物理键直接进 EditText / IME）
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (!isFinished && event.action == KeyEvent.ACTION_DOWN &&
+            pagePractice.visibility == View.VISIBLE && !hiddenInput.hasFocus()
+        ) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DEL, KeyEvent.KEYCODE_FORWARD_DEL -> {
+                    if (userInput.isNotEmpty()) {
+                        hiddenInput.setText(userInput.substring(0, userInput.length - 1))
+                        hiddenInput.setSelection(hiddenInput.text.length)
+                        return true
+                    }
+                }
+                else -> {
+                    val ch = event.unicodeChar
+                    if (ch != 0 && !Character.isISOControl(ch)) {
+                        hiddenInput.setText(userInput + ch.toChar())
+                        hiddenInput.setSelection(hiddenInput.text.length)
+                        return true
+                    }
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    // 蓝牙键盘连接/断开时即时响应：收起软键盘、自动聚焦输入框
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (pagePractice.visibility == View.VISIBLE && !isFinished) {
+            if (hasHardKeyboard()) {
+                hideKeyboard()
+                hiddenInput.requestFocus()
+            }
+        }
     }
 
     // ===== Modal =====
