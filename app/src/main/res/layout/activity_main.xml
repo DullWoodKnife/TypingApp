@@ -522,17 +522,25 @@
                     android:textColor="@color/text_secondary"
                     android:layout_marginBottom="12dp" />
 
-                <TextView
-                    android:id="@+id/detail_content"
+                <!-- 内容详情支持滑动，长文本可完整查看 -->
+                <ScrollView
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="serif"
-                    android:textSize="16sp"
-                    android:lineSpacingMultiplier="1.5"
-                    android:letterSpacing="0.05"
-                    android:padding="16dp"
-                    android:background="@color/intensity_4"
-                    android:textColor="@color/text_primary" />
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:fillViewport="true">
+
+                    <TextView
+                        android:id="@+id/detail_content"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="serif"
+                        android:textSize="16sp"
+                        android:lineSpacingMultiplier="1.5"
+                        android:letterSpacing="0.05"
+                        android:padding="16dp"
+                        android:background="@color/intensity_4"
+                        android:textColor="@color/text_primary" />
+                </ScrollView>
 
             </LinearLayout>
 

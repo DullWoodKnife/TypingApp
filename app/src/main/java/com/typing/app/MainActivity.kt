@@ -48,7 +48,7 @@ class MainActivity : AppCompatActivity() {
     private val cursorRunnable = object : Runnable {
         override fun run() {
             cursorVisible = !cursorVisible
-            updateTextDisplay()
+            updateTextDisplay(keepScroll = true)
             handler.postDelayed(this, 500)
         }
     }
@@ -478,12 +478,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateTextDisplay() {
+    private fun updateTextDisplay(keepScroll: Boolean = false) {
         val content = getContent(currentContentId) ?: return
         val text = content.getString("content")
         typingTextView.setTextData(text, userInput, cursorVisible)
         updateWubiHint(text)
-        autoScrollToCurrent()
+        // 仅在输入内容变化时自动滚动到当前行；光标闪烁(keepScroll=true)时保留用户手动滚动位置
+        if (!keepScroll) {
+            autoScrollToCurrent()
+        }
     }
 
     private fun autoScrollToCurrent() {

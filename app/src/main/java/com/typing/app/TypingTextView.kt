@@ -53,6 +53,13 @@ class TypingTextView @JvmOverloads constructor(
     private var needsLayout = true
 
     fun setTextData(original: String, input: String, showCursor: Boolean) {
+        // 文本/输入无变化时（如光标闪烁刷新），只重绘光标，不做布局重算，
+        // 避免 requestLayout 干扰父 ScrollView 的滚动位置
+        if (original == originalText && input == userInput) {
+            cursorVisible = showCursor
+            invalidate()
+            return
+        }
         originalText = original
         userInput = input
         cursorVisible = showCursor
