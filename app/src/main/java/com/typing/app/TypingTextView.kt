@@ -116,7 +116,7 @@ class TypingTextView @JvmOverloads constructor(
             topPadding = -fm.ascent
             gridPadding = (width - charWidth * CHARS_PER_ROW) / 2f
             lastWidth = width
-            computeLayout(width)
+            computeLayout(width.toFloat())
             needsLayout = false
         }
 
