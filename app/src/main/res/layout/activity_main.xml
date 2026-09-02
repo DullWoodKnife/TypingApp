@@ -292,18 +292,26 @@
                         android:ellipsize="end" />
                 </LinearLayout>
 
-                <!-- 拼音/音标 + 释义（跟随当前字，输入完成后再切换） -->
-                <TextView
-                    android:id="@+id/dict_hint"
+                <!-- 拼音/音标 + 释义（跟随当前字，输入完成后再切换）；释义过长时可上下滑动查看 -->
+                <ScrollView
+                    android:id="@+id/dict_hint_scroll"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textSize="12sp"
-                    android:textColor="@color/text_secondary"
-                    android:lineSpacingMultiplier="1.2"
-                    android:maxLines="3"
-                    android:ellipsize="end"
-                    android:layout_marginBottom="8dp"
-                    android:minHeight="36dp" />
+                    android:layout_height="56dp"
+                    android:fillViewport="false"
+                    android:overScrollMode="ifContentScrolls"
+                    android:scrollbars="vertical"
+                    android:fadeScrollbars="false"
+                    android:layout_marginBottom="8dp">
+
+                    <TextView
+                        android:id="@+id/dict_hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="12sp"
+                        android:textColor="@color/text_secondary"
+                        android:lineSpacingMultiplier="1.2"
+                        android:paddingBottom="2dp" />
+                </ScrollView>
 
                 <!-- Typing area -->
                 <ScrollView

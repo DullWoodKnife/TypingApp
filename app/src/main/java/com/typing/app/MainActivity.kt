@@ -85,6 +85,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var practiceHint: TextView
     private lateinit var wubiHint: TextView
     private lateinit var dictHint: TextView
+    private lateinit var dictHintScroll: ScrollView
     private var wubiTable: HashMap<String, String>? = null
     private var hanziDict: HashMap<String, HanziEntry>? = null
     private var enZhDict: HashMap<String, String>? = null
@@ -234,6 +235,7 @@ class MainActivity : AppCompatActivity() {
         practiceHint = findViewById(R.id.practice_hint)
         wubiHint = findViewById(R.id.wubi_hint)
         dictHint = findViewById(R.id.dict_hint)
+        dictHintScroll = findViewById(R.id.dict_hint_scroll)
         typingScrollView = findViewById(R.id.typing_scroll_view)
         typingTextView = findViewById(R.id.typing_text_view)
         hiddenInput = findViewById(R.id.hidden_input)
@@ -633,7 +635,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateHints(text: String) {
         if (isFinished || text.isEmpty()) {
             wubiHint.text = ""
-            dictHint.text = ""
+            setDictHintText("")
             return
         }
         val idx = currentHintIndex(text).coerceIn(0, text.length - 1)
@@ -657,6 +659,13 @@ class MainActivity : AppCompatActivity() {
         return ch.isLetter() && !isHanziChar(ch)
     }
 
+    // 设置释义文本：内容变化后回滚到顶部，保证切换字/词后新释义从开头可见
+    private fun setDictHintText(text: String) {
+        if (dictHint.text.toString() == text) return
+        dictHint.text = text
+        dictHintScroll.scrollTo(0, 0)
+    }
+
     // 显示汉字的拼音 + 释义（多音字/多释义用分号分隔）
     private fun showHanziHint(ch: Char) {
         val entry = queryHanzi(ch)
@@ -665,13 +674,13 @@ class MainActivity : AppCompatActivity() {
         } else {
             ""
         }
-        if (dictHint.text.toString() != display) dictHint.text = display
+        setDictHintText(display)
     }
 
     // 显示英文单词的音标 + 英英释义 + 英汉释义（两个释义用分号分隔）
     private fun showEnHint(word: String) {
         if (word.isBlank()) {
-            if (dictHint.text.toString() != "") dictHint.text = ""
+            setDictHintText("")
             return
         }
         val entry = queryEn(word)
@@ -684,7 +693,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             ""
         }
-        if (dictHint.text.toString() != display) dictHint.text = display
+        setDictHintText(display)
     }
 
     // 计算光标位置所在的英文单词；光标处非字母（说明当前词刚打完）时向后找下一个词，
@@ -773,8 +782,8 @@ class MainActivity : AppCompatActivity() {
         val text = content.getString("content")
         if (inputLen >= text.length) return
 
-        // Calculate which row the cursor is on (each row has CHARS_PER_ROW characters)
-        val currentRow = inputLen / TypingTextView.CHARS_PER_ROW
+        // 光标所在行：中文按 17 字网格，英文按实际排版行（每行字符数不固定）
+        val currentRow = typingTextView.rowOfIndex(inputLen)
         val y = (currentRow * typingTextView.rowHeight).toInt()
 
         val scrollViewHeight = typingScrollView.height
@@ -1519,24 +1528,46 @@ class MainActivity : AppCompatActivity() {
         private const val REQUEST_IMPORT_EN = 1003
     }
 
+    private var soundsReady = 0
+
     private fun initSounds() {
-        val attrs = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
-        soundPool = SoundPool.Builder().setMaxStreams(2).setAudioAttributes(attrs).build()
-        clickSoundId = soundPool?.load(this, R.raw.key_click, 1) ?: 0
-        errorSoundId = soundPool?.load(this, R.raw.error, 1) ?: 0
+        try {
+            // 使用 USAGE_GAME：跟随媒体音量通道。
+            // 之前用的 USAGE_ASSISTANCE_SONIFICATION 在部分机型上被映射到
+            // "辅助功能"音量（常为 0 或被系统静音），导致听不到键盘音。
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            soundPool?.release()
+            soundPool = SoundPool.Builder()
+                .setMaxStreams(8)   // 快速连打时不丢音
+                .setAudioAttributes(attrs)
+                .build()
+            soundPool?.setOnLoadCompleteListener { _, _, status ->
+                if (status == 0) soundsReady++
+            }
+            clickSoundId = soundPool?.load(this, R.raw.key_click, 1) ?: 0
+            errorSoundId = soundPool?.load(this, R.raw.error, 1) ?: 0
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     // 机械键盘敲击音（对）/ 错误提示音（错）
     private fun playKeySound(correct: Boolean) {
         if (!settingsPrefs.getBoolean("key_sound_enabled", true)) return
-        val sp = soundPool ?: return
+        val sp = soundPool ?: run { initSounds(); soundPool } ?: return
         val id = if (correct) clickSoundId else errorSoundId
         if (id == 0) return
-        if (correct) sp.play(id, 0.8f, 0.8f, 1, 0, 1f)
-        else sp.play(id, 1.0f, 1.0f, 1, 0, 1f)
+        try {
+            // 不等待加载完成：未就绪时 play 直接返回 0（静默），
+            // 避免因加载回调未触发而永久无声
+            if (correct) sp.play(id, 1.0f, 1.0f, 1, 0, 1f)
+            else sp.play(id, 1.0f, 1.0f, 1, 0, 1f)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     // 背景音乐：循环播放用户选择的本地音频
@@ -1579,6 +1610,8 @@ class MainActivity : AppCompatActivity() {
         switchBgMusic.isChecked = settingsPrefs.getBoolean("bg_music_enabled", false)
         switchKeySound.setOnCheckedChangeListener { _, checked ->
             settingsPrefs.edit().putBoolean("key_sound_enabled", checked).apply()
+            // 打开时立即试听一次，便于确认音效是否正常
+            if (checked) playKeySound(true)
         }
         switchBgMusic.setOnCheckedChangeListener { _, checked ->
             settingsPrefs.edit().putBoolean("bg_music_enabled", checked).apply()
