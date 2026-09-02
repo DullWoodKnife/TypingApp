@@ -22,8 +22,15 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 
 class MainActivity : AppCompatActivity() {
 
@@ -40,6 +47,8 @@ class MainActivity : AppCompatActivity() {
     private var editId: String? = null
     private var selectMode = false
     private var modalCallback: (() -> Unit)? = null
+    // 当前显示在提示区的“字/词”下标，用于实现“输入完成显示在UI上后才切换”
+    private var currentHintIndex = -1
 
     // Timer & cursor
     private val handler = Handler(Looper.getMainLooper())
@@ -70,7 +79,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statAcc: TextView
     private lateinit var practiceHint: TextView
     private lateinit var wubiHint: TextView
+    private lateinit var dictHint: TextView
     private var wubiTable: HashMap<String, String>? = null
+    private var hanziDict: HashMap<String, HanziEntry>? = null
+    private var enZhDict: HashMap<String, String>? = null
     private lateinit var typingScrollView: ScrollView
     private lateinit var typingTextView: TypingTextView
     private lateinit var hiddenInput: EditText
@@ -192,6 +204,7 @@ class MainActivity : AppCompatActivity() {
         statAcc = findViewById(R.id.stat_acc)
         practiceHint = findViewById(R.id.practice_hint)
         wubiHint = findViewById(R.id.wubi_hint)
+        dictHint = findViewById(R.id.dict_hint)
         typingScrollView = findViewById(R.id.typing_scroll_view)
         typingTextView = findViewById(R.id.typing_text_view)
         hiddenInput = findViewById(R.id.hidden_input)
@@ -425,16 +438,193 @@ class MainActivity : AppCompatActivity() {
         return table[ch.toString()] ?: ""
     }
 
-    // 在"正在输入…"同行最右侧，显示光标当前位置汉字的86版五笔拆字（完整码,简码）
-    private fun updateWubiHint(text: String) {
-        val idx = userInput.length
-        var code = ""
-        if (!isFinished && idx < text.length) {
-            code = getWubiCode(text[idx])
+    // ===== 拼音/音标 + 释义数据 =====
+
+    data class HanziEntry(val pinyin: String, val defs: String)
+
+    // 加载 assets/hanzi_dict.txt：只收录 wubi86_码表.txt 中的 8105 个汉字
+    // 格式：字\t拼音1;拼音2\t释义1;释义2
+    private fun loadHanziDict(): HashMap<String, HanziEntry> {
+        val map = HashMap<String, HanziEntry>()
+        try {
+            assets.open("hanzi_dict.txt").bufferedReader().useLines { lines ->
+                for (line in lines) {
+                    val t = line.trim()
+                    if (t.isEmpty()) continue
+                    val parts = t.split('\t')
+                    if (parts.size >= 3) {
+                        map[parts[0]] = HanziEntry(parts[1], parts[2])
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
+        return map
+    }
+
+    // 加载 assets/en_zh_dict.txt：英文单词 -> 中文释义（从 cc-cedict 反向构建）
+    // 格式：word\t中文1;中文2
+    private fun loadEnZhDict(): HashMap<String, String> {
+        val map = HashMap<String, String>()
+        try {
+            assets.open("en_zh_dict.txt").bufferedReader().useLines { lines ->
+                for (line in lines) {
+                    val t = line.trim()
+                    if (t.isEmpty()) continue
+                    val idx = t.indexOf('\t')
+                    if (idx > 0) map[t.substring(0, idx).lowercase()] = t.substring(idx + 1)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return map
+    }
+
+    private fun getHanziEntry(ch: Char): HanziEntry? {
+        val dict = hanziDict ?: loadHanziDict().also { hanziDict = it }
+        return dict[ch.toString()]
+    }
+
+    private fun getEnZh(word: String): String? {
+        val dict = enZhDict ?: loadEnZhDict().also { enZhDict = it }
+        return dict[word.lowercase()]
+    }
+
+    // 在线查询 Free Dictionary API 获取英文音标 + 英英释义
+    private suspend fun queryEnglishDict(word: String): Pair<String, String>? = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("https://api.dictionaryapi.dev/api/v2/entries/en/${URLEncoder.encode(word, "UTF-8")}")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            conn.setRequestProperty("Accept", "application/json")
+            if (conn.responseCode != 200) return@withContext null
+            val json = conn.inputStream.bufferedReader().use { it.readText() }
+            val arr = JSONArray(json)
+            if (arr.length() == 0) return@withContext null
+            val entry = arr.getJSONObject(0)
+
+            // phonetic
+            var phonetic = ""
+            if (entry.has("phonetics")) {
+                val phonetics = entry.getJSONArray("phonetics")
+                for (i in 0 until phonetics.length()) {
+                    val p = phonetics.getJSONObject(i)
+                    if (p.has("text") && !p.isNull("text")) {
+                        phonetic = p.getString("text")
+                        if (phonetic.isNotBlank()) break
+                    }
+                }
+            }
+
+            // English definitions
+            val defs = mutableListOf<String>()
+            if (entry.has("meanings")) {
+                val meanings = entry.getJSONArray("meanings")
+                for (i in 0 until meanings.length()) {
+                    val m = meanings.getJSONObject(i)
+                    if (!m.has("definitions")) continue
+                    val definitions = m.getJSONArray("definitions")
+                    for (j in 0 until definitions.length()) {
+                        val d = definitions.getJSONObject(j)
+                        if (d.has("definition") && !d.isNull("definition")) {
+                            defs.add(d.getString("definition"))
+                            if (defs.size >= 2) break
+                        }
+                    }
+                    if (defs.size >= 2) break
+                }
+            }
+            if (defs.isEmpty()) return@withContext null
+            Pair(phonetic, defs.joinToString("; "))
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    // 在"正在输入…"同行最右侧，显示光标当前位置汉字的86版五笔拆字（完整码,简码）。
+    // 跟随"当前字"：userInput.length>0 时取 text[userInput.length-1]（已显示在UI上的当前字），
+    // 否则取 text[0]（准备输入的第一个字）。输入完成显示到UI后才切换到下一个字。
+    private fun updateWubiHint(text: String) {
+        val idx = currentHintIndex(text)
+        val code = if (idx >= 0 && idx < text.length) getWubiCode(text[idx]) else ""
         if (wubiHint.text.toString() != code) {
             wubiHint.text = code
         }
+    }
+
+    // 计算当前应当显示提示的字符下标：已完成并显示在 UI 上的那个字
+    private fun currentHintIndex(text: String): Int {
+        return when {
+            isFinished -> -1
+            userInput.isEmpty() -> 0
+            else -> (userInput.length - 1).coerceAtMost(text.length - 1)
+        }
+    }
+
+    // 更新五笔码 + 拼音/音标释义区。只有当"当前字"发生变化时才切换，
+    // 保证当前字输入未完成时提示一直显示。
+    private fun updateHints(text: String) {
+        val idx = currentHintIndex(text)
+        if (idx < 0 || idx >= text.length) {
+            wubiHint.text = ""
+            dictHint.text = ""
+            return
+        }
+        updateWubiHint(text)
+        updateDictHint(text[idx])
+    }
+
+    // 显示当前字的拼音/音标 + 释义
+    private fun updateDictHint(ch: Char) {
+        // 当前字符非 CJK 基本/扩展汉字时，视为英文内容按单词处理
+        val isHanzi = ch.toString().matches(Regex("[\\u4e00-\\u9fa5]"))
+        if (isHanzi) {
+            val entry = getHanziEntry(ch)
+            val text = if (entry != null) {
+                "${entry.pinyin}  ${entry.defs}"
+            } else {
+                ""
+            }
+            if (dictHint.text.toString() != text) dictHint.text = text
+        } else {
+            // 英文/非汉字：按单词处理。取以当前字符开头的连续英文单词。
+            val word = extractEnglishWord(ch)
+            if (word.isBlank()) {
+                if (dictHint.text.toString() != "") dictHint.text = ""
+                return
+            }
+            // 避免同一个单词重复发请求
+            val cached = dictHint.tag as? String
+            if (cached == word) return
+
+            val enZh = getEnZh(word)
+            val zhPart = if (!enZh.isNullOrBlank()) "; $enZh" else ""
+            dictHint.text = "查询中…"
+            dictHint.tag = word
+            CoroutineScope(Dispatchers.Main).launch {
+                val result = queryEnglishDict(word)
+                val display = if (result != null) {
+                    "${result.first}  ${result.second}$zhPart"
+                } else if (!enZh.isNullOrBlank()) {
+                    "$word  $enZh"
+                } else {
+                    ""
+                }
+                if (dictHint.tag == word) {
+                    dictHint.text = display
+                }
+            }
+        }
+    }
+
+    // 从当前字符位置提取连续英文单词。由于练习按字符粒度，
+    // 这里直接返回当前字符本身作为待查单词（允许 a-Z 及连字符）。
+    private fun extractEnglishWord(ch: Char): String {
+        return if (ch.isLetter()) ch.toString().lowercase() else ""
     }
 
     // ===== Practice =====
@@ -469,7 +659,8 @@ class MainActivity : AppCompatActivity() {
 
         val text = content.getString("content")
         typingTextView.setTextData(text, userInput, cursorVisible)
-        updateWubiHint(text)
+        currentHintIndex = -1
+        updateHints(text)
         startCursorBlink()
 
         // 蓝牙/物理键盘已连接：进入练习页自动聚焦，无需点屏幕即可直接打字
@@ -482,7 +673,7 @@ class MainActivity : AppCompatActivity() {
         val content = getContent(currentContentId) ?: return
         val text = content.getString("content")
         typingTextView.setTextData(text, userInput, cursorVisible)
-        updateWubiHint(text)
+        updateHints(text)
         // 仅在输入内容变化时自动滚动到当前行；光标闪烁(keepScroll=true)时保留用户手动滚动位置
         if (!keepScroll) {
             autoScrollToCurrent()
@@ -567,6 +758,8 @@ class MainActivity : AppCompatActivity() {
             practiceHint.text = getString(R.string.completed)
 
             val stats = recalcStats(originalText)
+            currentHintIndex = -1
+            updateHints(originalText)
             val secs = if (elapsed > 0) elapsed else 1
             val speed = Math.round(stats[0].toFloat() / secs * 60)
             val acc = if (stats[0] + stats[1] > 0) Math.round(stats[0].toFloat() / (stats[0] + stats[1]) * 100) else 0
@@ -686,6 +879,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val stats = recalcStats(text)
+        currentHintIndex = -1
         updateTextDisplay()
 
         val secs = 60

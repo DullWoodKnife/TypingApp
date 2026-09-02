@@ -280,6 +280,19 @@
                         android:ellipsize="end" />
                 </LinearLayout>
 
+                <!-- 拼音/音标 + 释义（跟随当前字，输入完成后再切换） -->
+                <TextView
+                    android:id="@+id/dict_hint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary"
+                    android:lineSpacingMultiplier="1.2"
+                    android:maxLines="3"
+                    android:ellipsize="end"
+                    android:layout_marginBottom="8dp"
+                    android:minHeight="36dp" />
+
                 <!-- Typing area -->
                 <ScrollView
                     android:id="@+id/typing_scroll_view"
@@ -448,22 +461,27 @@
                     android:inputType="text"
                     android:importantForAutofill="no" />
 
-                <EditText
-                    android:id="@+id/edit_content_input"
+                <ScrollView
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_weight="1"
-                    android:hint="@string/hint_content"
-                    android:textSize="14sp"
-                    android:padding="12dp"
-                    android:background="@color/intensity_4"
-                    android:gravity="top"
-                    android:lines="8"
-                    android:minLines="5"
-                    android:inputType="textMultiLine"
-                    android:scrollbars="vertical"
-                    android:importantForAutofill="no"
-                    android:layout_marginBottom="16dp" />
+                    android:layout_marginBottom="16dp"
+                    android:fillViewport="true">
+
+                    <EditText
+                        android:id="@+id/edit_content_input"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="@string/hint_content"
+                        android:textSize="14sp"
+                        android:padding="12dp"
+                        android:background="@color/intensity_4"
+                        android:gravity="top"
+                        android:minLines="8"
+                        android:inputType="textMultiLine|textNoSuggestions"
+                        android:scrollbars="vertical"
+                        android:importantForAutofill="no" />
+                </ScrollView>
 
                 <Button
                     android:id="@+id/btn_save_content"
