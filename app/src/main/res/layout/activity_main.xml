@@ -51,6 +51,18 @@
                         android:paddingHorizontal="16dp">
 
                         <Button
+                            android:id="@+id/btn_settings"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:minHeight="64dp"
+                            android:paddingVertical="18dp"
+                            android:text="@string/btn_settings"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            app:strokeColor="@color/destructive"
+                            android:textColor="@color/destructive"
+                            android:layout_marginBottom="36dp" />
+
+                        <Button
                             android:id="@+id/btn_normal_practice"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -758,6 +770,175 @@
                         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                         app:strokeColor="@color/destructive"
                         android:textColor="@color/destructive" />
+
+                </LinearLayout>
+            </ScrollView>
+
+            <!-- Page 8: Settings -->
+            <ScrollView
+                android:id="@+id/page_settings"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:fillViewport="true"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/settings_title"
+                            android:textSize="17sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary" />
+
+                        <Button
+                            android:id="@+id/btn_back_from_settings"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/btn_back"
+                            android:textSize="12sp"
+                            style="@style/Widget.MaterialComponents.Button.TextButton"
+                            android:textColor="@color/text_secondary"
+                            android:minWidth="0dp"
+                            android:minHeight="0dp" />
+                    </LinearLayout>
+
+                    <!-- 版本 -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_version"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginBottom="4dp" />
+
+                    <TextView
+                        android:id="@+id/settings_version_value"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="14sp"
+                        android:textColor="@color/text_primary"
+                        android:padding="12dp"
+                        android:background="@color/intensity_4"
+                        android:layout_marginBottom="20dp" />
+
+                    <!-- 音效 -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_sound"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginBottom="4dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:padding="12dp"
+                        android:background="@color/intensity_4">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/settings_key_sound"
+                            android:textSize="14sp"
+                            android:textColor="@color/text_primary" />
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switch_key_sound"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:padding="12dp"
+                        android:background="@color/intensity_4"
+                        android:layout_marginTop="1dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/settings_bg_music"
+                            android:textSize="14sp"
+                            android:textColor="@color/text_primary" />
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switch_bg_music"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/btn_pick_music"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_pick_music"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        app:strokeColor="@color/destructive"
+                        android:textColor="@color/destructive"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="20dp" />
+
+                    <!-- 词典数据 -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_dict"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginBottom="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_import_hanzi"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_import_hanzi"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        app:strokeColor="@color/destructive"
+                        android:textColor="@color/destructive"
+                        android:layout_marginBottom="8dp" />
+
+                    <Button
+                        android:id="@+id/btn_import_en"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_import_en"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        app:strokeColor="@color/destructive"
+                        android:textColor="@color/destructive" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_dict_hint"
+                        android:textSize="11sp"
+                        android:textColor="@color/text_secondary"
+                        android:lineSpacingMultiplier="1.3"
+                        android:layout_marginTop="8dp" />
 
                 </LinearLayout>
             </ScrollView>

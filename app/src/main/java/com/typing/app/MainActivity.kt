@@ -1,9 +1,16 @@
 package com.typing.app
 
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
+import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteOpenHelper
 import android.graphics.Color
 import android.graphics.Typeface
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.media.SoundPool
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -20,6 +27,7 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.CoroutineScope
@@ -28,9 +36,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
-import java.net.URLEncoder
+import java.io.BufferedReader
 
 class MainActivity : AppCompatActivity() {
 
@@ -47,8 +53,6 @@ class MainActivity : AppCompatActivity() {
     private var editId: String? = null
     private var selectMode = false
     private var modalCallback: (() -> Unit)? = null
-    // 当前显示在提示区的“字/词”下标，用于实现“输入完成显示在UI上后才切换”
-    private var currentHintIndex = -1
 
     // Timer & cursor
     private val handler = Handler(Looper.getMainLooper())
@@ -70,6 +74,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pageContentDetail: View
     private lateinit var pageRecords: View
     private lateinit var pageChallenge: View
+    private lateinit var pageSettings: View
     private lateinit var modalOverlay: FrameLayout
 
     // Practice views
@@ -86,6 +91,23 @@ class MainActivity : AppCompatActivity() {
     private lateinit var typingScrollView: ScrollView
     private lateinit var typingTextView: TypingTextView
     private lateinit var hiddenInput: EditText
+
+    // Settings views
+    private lateinit var settingsVersionValue: TextView
+    private lateinit var switchKeySound: com.google.android.material.switchmaterial.SwitchMaterial
+    private lateinit var switchBgMusic: com.google.android.material.switchmaterial.SwitchMaterial
+    private lateinit var btnPickMusic: Button
+    private lateinit var btnImportHanzi: Button
+    private lateinit var btnImportEn: Button
+
+    // 音效 & 背景音乐 & 词典数据库
+    private val settingsPrefs by lazy { getSharedPreferences("typing_settings", Context.MODE_PRIVATE) }
+    private var soundPool: SoundPool? = null
+    private var clickSoundId = 0
+    private var errorSoundId = 0
+    private var bgPlayer: MediaPlayer? = null
+    private var dictDb: DictDbHelper? = null
+    private var importJob: kotlinx.coroutines.Job? = null
 
     // Content list
     private lateinit var contentListTitle: TextView
@@ -131,6 +153,12 @@ class MainActivity : AppCompatActivity() {
         loadData()
         bindViews()
         setupListeners()
+        initSounds()
+        // 后台预加载内置词典，避免练习中首次查询卡顿
+        CoroutineScope(Dispatchers.IO).launch {
+            if (hanziDict == null) hanziDict = loadHanziDict()
+            if (enZhDict == null) enZhDict = loadEnZhDict()
+        }
         showPage("home")
     }
 
@@ -196,6 +224,7 @@ class MainActivity : AppCompatActivity() {
         pageContentDetail = findViewById(R.id.page_content_detail)
         pageRecords = findViewById(R.id.page_records)
         pageChallenge = findViewById(R.id.page_challenge)
+        pageSettings = findViewById(R.id.page_settings)
         modalOverlay = findViewById(R.id.modal_overlay)
 
         statTime = findViewById(R.id.stat_time)
@@ -235,6 +264,13 @@ class MainActivity : AppCompatActivity() {
         modalBody = findViewById(R.id.modal_body)
         modalBtn = findViewById(R.id.modal_btn)
 
+        settingsVersionValue = findViewById(R.id.settings_version_value)
+        switchKeySound = findViewById(R.id.switch_key_sound)
+        switchBgMusic = findViewById(R.id.switch_bg_music)
+        btnPickMusic = findViewById(R.id.btn_pick_music)
+        btnImportHanzi = findViewById(R.id.btn_import_hanzi)
+        btnImportEn = findViewById(R.id.btn_import_en)
+
         navChallenge = findViewById(R.id.nav_challenge)
         navHome = findViewById(R.id.nav_home)
         navRecords = findViewById(R.id.nav_records)
@@ -242,6 +278,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupListeners() {
         // Home buttons
+        findViewById<Button>(R.id.btn_settings).setOnClickListener {
+            showPage("settings")
+            renderSettings()
+        }
+
         findViewById<Button>(R.id.btn_normal_practice).setOnClickListener {
             practiceMode = "normal"
             if (!hasContents()) {
@@ -342,6 +383,25 @@ class MainActivity : AppCompatActivity() {
             hideModal()
         }
 
+        // Settings
+        findViewById<Button>(R.id.btn_back_from_settings).setOnClickListener {
+            showPage("home")
+        }
+
+        btnPickMusic.setOnClickListener {
+            pickFile(REQUEST_PICK_MUSIC, "audio/*")
+        }
+
+        btnImportHanzi.setOnClickListener {
+            if (importJob?.isActive == true) return@setOnClickListener
+            pickFile(REQUEST_IMPORT_HANZI, "*/*")
+        }
+
+        btnImportEn.setOnClickListener {
+            if (importJob?.isActive == true) return@setOnClickListener
+            pickFile(REQUEST_IMPORT_EN, "*/*")
+        }
+
         // Bottom nav
         navHome.setOnClickListener { showPage("home") }
         navChallenge.setOnClickListener {
@@ -369,6 +429,7 @@ class MainActivity : AppCompatActivity() {
         pageContentDetail.visibility = View.GONE
         pageRecords.visibility = View.GONE
         pageChallenge.visibility = View.GONE
+        pageSettings.visibility = View.GONE
 
         when (pageId) {
             "home" -> pageHome.visibility = View.VISIBLE
@@ -378,6 +439,7 @@ class MainActivity : AppCompatActivity() {
             "contentDetail" -> pageContentDetail.visibility = View.VISIBLE
             "records" -> pageRecords.visibility = View.VISIBLE
             "challenge" -> pageChallenge.visibility = View.VISIBLE
+            "settings" -> pageSettings.visibility = View.VISIBLE
         }
 
         // Update nav active state
@@ -395,7 +457,8 @@ class MainActivity : AppCompatActivity() {
             "records" to navRecords,
             "contentList" to navHome,
             "contentEdit" to navHome,
-            "contentDetail" to navHome
+            "contentDetail" to navHome,
+            "settings" to navHome
         )
 
         val activeNav = navMap[pageId] ?: navHome
@@ -492,57 +555,57 @@ class MainActivity : AppCompatActivity() {
         return dict[word.lowercase()]
     }
 
-    // 在线查询 Free Dictionary API 获取英文音标 + 英英释义
-    private suspend fun queryEnglishDict(word: String): Pair<String, String>? = withContext(Dispatchers.IO) {
+    // ===== 词典数据库（用户导入的 SQLite，优先于内置数据）=====
+
+    class DictDbHelper(context: Context) : SQLiteOpenHelper(context, "dicts.db", null, 1) {
+        override fun onCreate(db: SQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS hanzi(word TEXT PRIMARY KEY, pinyin TEXT, def TEXT)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS enword(word TEXT PRIMARY KEY, phonetic TEXT, definition TEXT, translation TEXT)")
+        }
+
+        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+    }
+
+    private fun getDictDb(): DictDbHelper {
+        return dictDb ?: DictDbHelper(this).also { dictDb = it }
+    }
+
+    data class EnEntry(val phonetic: String, val definition: String, val translation: String)
+
+    // 查询汉字：优先用户导入的 SQLite 词典，回退内置 hanzi_dict.txt
+    private fun queryHanzi(ch: Char): HanziEntry? {
         try {
-            val url = URL("https://api.dictionaryapi.dev/api/v2/entries/en/${URLEncoder.encode(word, "UTF-8")}")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
-            conn.setRequestProperty("Accept", "application/json")
-            if (conn.responseCode != 200) return@withContext null
-            val json = conn.inputStream.bufferedReader().use { it.readText() }
-            val arr = JSONArray(json)
-            if (arr.length() == 0) return@withContext null
-            val entry = arr.getJSONObject(0)
-
-            // phonetic
-            var phonetic = ""
-            if (entry.has("phonetics")) {
-                val phonetics = entry.getJSONArray("phonetics")
-                for (i in 0 until phonetics.length()) {
-                    val p = phonetics.getJSONObject(i)
-                    if (p.has("text") && !p.isNull("text")) {
-                        phonetic = p.getString("text")
-                        if (phonetic.isNotBlank()) break
-                    }
-                }
+            getDictDb().readableDatabase.rawQuery(
+                "SELECT pinyin, def FROM hanzi WHERE word = ?", arrayOf(ch.toString())
+            ).use { c ->
+                if (c.moveToFirst()) return HanziEntry(c.getString(0) ?: "", c.getString(1) ?: "")
             }
-
-            // English definitions
-            val defs = mutableListOf<String>()
-            if (entry.has("meanings")) {
-                val meanings = entry.getJSONArray("meanings")
-                for (i in 0 until meanings.length()) {
-                    val m = meanings.getJSONObject(i)
-                    if (!m.has("definitions")) continue
-                    val definitions = m.getJSONArray("definitions")
-                    for (j in 0 until definitions.length()) {
-                        val d = definitions.getJSONObject(j)
-                        if (d.has("definition") && !d.isNull("definition")) {
-                            defs.add(d.getString("definition"))
-                            if (defs.size >= 2) break
-                        }
-                    }
-                    if (defs.size >= 2) break
-                }
-            }
-            if (defs.isEmpty()) return@withContext null
-            Pair(phonetic, defs.joinToString("; "))
         } catch (e: Exception) {
             e.printStackTrace()
-            null
         }
+        return getHanziEntry(ch)
+    }
+
+    // 查询英文单词：优先用户导入的 SQLite 词典，回退内置 en_zh_dict.txt（仅中文释义）
+    private fun queryEn(word: String): EnEntry? {
+        val w = word.lowercase()
+        try {
+            getDictDb().readableDatabase.rawQuery(
+                "SELECT phonetic, definition, translation FROM enword WHERE word = ?", arrayOf(w)
+            ).use { c ->
+                if (c.moveToFirst()) {
+                    return EnEntry(
+                        c.getString(0) ?: "",
+                        c.getString(1) ?: "",
+                        c.getString(2) ?: ""
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        val zh = getEnZh(w) ?: return null
+        return EnEntry("", "", zh)
     }
 
     // 在"正在输入…"同行最右侧，显示光标当前位置汉字的86版五笔拆字（完整码,简码）。
@@ -565,66 +628,91 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // 更新五笔码 + 拼音/音标释义区。只有当"当前字"发生变化时才切换，
-    // 保证当前字输入未完成时提示一直显示。
+    // 更新五笔码 + 拼音/音标释义区。汉字跟随"刚完成的字"，
+    // 英文跟随"当前正在输入的单词"（打完当前词、显示在UI上后才切换到下一个词）。
     private fun updateHints(text: String) {
-        val idx = currentHintIndex(text)
-        if (idx < 0 || idx >= text.length) {
+        if (isFinished || text.isEmpty()) {
             wubiHint.text = ""
             dictHint.text = ""
             return
         }
-        updateWubiHint(text)
-        updateDictHint(text[idx])
-    }
-
-    // 显示当前字的拼音/音标 + 释义
-    private fun updateDictHint(ch: Char) {
-        // 当前字符非 CJK 基本/扩展汉字时，视为英文内容按单词处理
-        val isHanzi = ch.toString().matches(Regex("[\\u4e00-\\u9fa5]"))
-        if (isHanzi) {
-            val entry = getHanziEntry(ch)
-            val text = if (entry != null) {
-                "${entry.pinyin}  ${entry.defs}"
-            } else {
-                ""
-            }
-            if (dictHint.text.toString() != text) dictHint.text = text
+        val idx = currentHintIndex(text).coerceIn(0, text.length - 1)
+        val ch = text[idx]
+        if (isHanziChar(ch)) {
+            updateWubiHint(text)
+            showHanziHint(ch)
         } else {
-            // 英文/非汉字：按单词处理。取以当前字符开头的连续英文单词。
-            val word = extractEnglishWord(ch)
-            if (word.isBlank()) {
-                if (dictHint.text.toString() != "") dictHint.text = ""
-                return
-            }
-            // 避免同一个单词重复发请求
-            val cached = dictHint.tag as? String
-            if (cached == word) return
-
-            val enZh = getEnZh(word)
-            val zhPart = if (!enZh.isNullOrBlank()) "; $enZh" else ""
-            dictHint.text = "查询中…"
-            dictHint.tag = word
-            CoroutineScope(Dispatchers.Main).launch {
-                val result = queryEnglishDict(word)
-                val display = if (result != null) {
-                    "${result.first}  ${result.second}$zhPart"
-                } else if (!enZh.isNullOrBlank()) {
-                    "$word  $enZh"
-                } else {
-                    ""
-                }
-                if (dictHint.tag == word) {
-                    dictHint.text = display
-                }
-            }
+            // 英文/其他内容：不显示五笔码，按单词显示音标释义
+            wubiHint.text = ""
+            showEnHint(currentEnglishWord(text))
         }
     }
 
-    // 从当前字符位置提取连续英文单词。由于练习按字符粒度，
-    // 这里直接返回当前字符本身作为待查单词（允许 a-Z 及连字符）。
-    private fun extractEnglishWord(ch: Char): String {
-        return if (ch.isLetter()) ch.toString().lowercase() else ""
+    private fun isHanziChar(ch: Char): Boolean {
+        return ch.code in 0x4E00..0x9FA5
+    }
+
+    // 仅英文字母（排除汉字：Char.isLetter() 对汉字也返回 true）
+    private fun isEnLetter(ch: Char): Boolean {
+        return ch.isLetter() && !isHanziChar(ch)
+    }
+
+    // 显示汉字的拼音 + 释义（多音字/多释义用分号分隔）
+    private fun showHanziHint(ch: Char) {
+        val entry = queryHanzi(ch)
+        val display = if (entry != null) {
+            "${entry.pinyin}  ${cleanDef(entry.defs)}"
+        } else {
+            ""
+        }
+        if (dictHint.text.toString() != display) dictHint.text = display
+    }
+
+    // 显示英文单词的音标 + 英英释义 + 英汉释义（两个释义用分号分隔）
+    private fun showEnHint(word: String) {
+        if (word.isBlank()) {
+            if (dictHint.text.toString() != "") dictHint.text = ""
+            return
+        }
+        val entry = queryEn(word)
+        val display = if (entry != null) {
+            val parts = mutableListOf<String>()
+            if (entry.phonetic.isNotBlank()) parts.add("/${entry.phonetic.trim('/')}/")
+            if (entry.definition.isNotBlank()) parts.add(cleanDef(entry.definition))
+            if (entry.translation.isNotBlank()) parts.add(cleanDef(entry.translation))
+            parts.joinToString("; ")
+        } else {
+            ""
+        }
+        if (dictHint.text.toString() != display) dictHint.text = display
+    }
+
+    // 计算光标位置所在的英文单词；光标处非字母（说明当前词刚打完）时向后找下一个词，
+    // 实现"当前单词输入完成显示在UI上后切换成下一个单词"
+    private fun currentEnglishWord(text: String): String {
+        if (text.isEmpty()) return ""
+        var i = userInput.length.coerceAtMost(text.length)
+        if (i >= text.length) i = text.length - 1
+        if (!isEnLetter(text[i])) {
+            var j = i
+            while (j < text.length && !isEnLetter(text[j])) j++
+            if (j >= text.length) return ""
+            i = j
+        }
+        var start = i
+        while (start > 0 && isEnLetter(text[start - 1])) start--
+        var end = i
+        while (end < text.length && isEnLetter(text[end])) end++
+        return text.substring(start, end)
+    }
+
+    // 清理释义文本：内部换行（含字面 \n 转义）统一替换为分号分隔
+    private fun cleanDef(s: String): String {
+        return s.replace("\\r", "")
+            .replace("\\n", "; ")
+            .replace("\r", "")
+            .replace("\n", "; ")
+            .trim()
     }
 
     // ===== Practice =====
@@ -659,7 +747,6 @@ class MainActivity : AppCompatActivity() {
 
         val text = content.getString("content")
         typingTextView.setTextData(text, userInput, cursorVisible)
-        currentHintIndex = -1
         updateHints(text)
         startCursorBlink()
 
@@ -728,6 +815,7 @@ class MainActivity : AppCompatActivity() {
     private fun handleInput(text: String) {
         val content = getContent(currentContentId) ?: return
         val originalText = content.getString("content")
+        val prevLen = userInput.length
 
         if (!isRunning && text.isNotEmpty()) {
             isRunning = true
@@ -746,6 +834,14 @@ class MainActivity : AppCompatActivity() {
             text
         }
 
+        // 键盘音效：新增字符时按对/错播放敲击音/错误音
+        if (userInput.length > prevLen && originalText.isNotEmpty()) {
+            val pos = userInput.length - 1
+            if (pos < originalText.length) {
+                playKeySound(userInput[pos] == originalText[pos])
+            }
+        }
+
         updateTextDisplay()
         updateStats(originalText)
 
@@ -758,7 +854,6 @@ class MainActivity : AppCompatActivity() {
             practiceHint.text = getString(R.string.completed)
 
             val stats = recalcStats(originalText)
-            currentHintIndex = -1
             updateHints(originalText)
             val secs = if (elapsed > 0) elapsed else 1
             val speed = Math.round(stats[0].toFloat() / secs * 60)
@@ -879,7 +974,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         val stats = recalcStats(text)
-        currentHintIndex = -1
         updateTextDisplay()
 
         val secs = 60
@@ -1412,13 +1506,354 @@ class MainActivity : AppCompatActivity() {
                 showPage("contentList")
                 renderContentList()
             }
+            pageSettings.visibility == View.VISIBLE -> showPage("home")
             else -> super.onBackPressed()
+        }
+    }
+
+    // ===== 设置：键盘音效 / 背景音乐 / 词典导入 =====
+
+    companion object {
+        private const val REQUEST_PICK_MUSIC = 1001
+        private const val REQUEST_IMPORT_HANZI = 1002
+        private const val REQUEST_IMPORT_EN = 1003
+    }
+
+    private fun initSounds() {
+        val attrs = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        soundPool = SoundPool.Builder().setMaxStreams(2).setAudioAttributes(attrs).build()
+        clickSoundId = soundPool?.load(this, R.raw.key_click, 1) ?: 0
+        errorSoundId = soundPool?.load(this, R.raw.error, 1) ?: 0
+    }
+
+    // 机械键盘敲击音（对）/ 错误提示音（错）
+    private fun playKeySound(correct: Boolean) {
+        if (!settingsPrefs.getBoolean("key_sound_enabled", true)) return
+        val sp = soundPool ?: return
+        val id = if (correct) clickSoundId else errorSoundId
+        if (id == 0) return
+        if (correct) sp.play(id, 0.8f, 0.8f, 1, 0, 1f)
+        else sp.play(id, 1.0f, 1.0f, 1, 0, 1f)
+    }
+
+    // 背景音乐：循环播放用户选择的本地音频
+    private fun startBgMusic() {
+        val uriStr = settingsPrefs.getString("bg_music_uri", null) ?: return
+        stopBgMusic()
+        try {
+            val player = MediaPlayer()
+            player.setDataSource(this, Uri.parse(uriStr))
+            player.isLooping = true
+            player.setVolume(0.5f, 0.5f)
+            player.prepare()
+            player.start()
+            bgPlayer = player
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun stopBgMusic() {
+        bgPlayer?.let {
+            try {
+                it.stop()
+            } catch (_: Exception) {
+            }
+            try {
+                it.release()
+            } catch (_: Exception) {
+            }
+        }
+        bgPlayer = null
+    }
+
+    private fun renderSettings() {
+        settingsVersionValue.text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+        // 回显开关状态时暂时移除监听，避免触发播放逻辑
+        switchKeySound.setOnCheckedChangeListener(null)
+        switchBgMusic.setOnCheckedChangeListener(null)
+        switchKeySound.isChecked = settingsPrefs.getBoolean("key_sound_enabled", true)
+        switchBgMusic.isChecked = settingsPrefs.getBoolean("bg_music_enabled", false)
+        switchKeySound.setOnCheckedChangeListener { _, checked ->
+            settingsPrefs.edit().putBoolean("key_sound_enabled", checked).apply()
+        }
+        switchBgMusic.setOnCheckedChangeListener { _, checked ->
+            settingsPrefs.edit().putBoolean("bg_music_enabled", checked).apply()
+            if (checked) startBgMusic() else stopBgMusic()
+        }
+    }
+
+    private fun pickFile(requestCode: Int, mime: String) {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+        intent.addCategory(Intent.CATEGORY_OPENABLE)
+        intent.type = mime
+        try {
+            startActivityForResult(intent, requestCode)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "无法打开文件选择器", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun queryFileName(uri: Uri): String {
+        try {
+            contentResolver.query(uri, null, null, null, null)?.use { c ->
+                if (c.moveToFirst()) {
+                    val idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (idx >= 0) return c.getString(idx) ?: ""
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return uri.lastPathSegment ?: ""
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode != RESULT_OK || data?.data == null) return
+        val uri = data.data!!
+        when (requestCode) {
+            REQUEST_PICK_MUSIC -> {
+                try {
+                    contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                settingsPrefs.edit().putString("bg_music_uri", uri.toString()).apply()
+                Toast.makeText(this, getString(R.string.settings_file_chosen, queryFileName(uri)), Toast.LENGTH_SHORT).show()
+                if (settingsPrefs.getBoolean("bg_music_enabled", false)) startBgMusic()
+            }
+            REQUEST_IMPORT_HANZI -> importHanziJson(uri)
+            REQUEST_IMPORT_EN -> importEnCsv(uri)
+        }
+    }
+
+    // 导入中文字典（chinese-xinhua dict.json 格式：word/pinyin/explanation，
+    // 支持整体 JSON 数组或每行一个 JSON 对象两种布局）
+    private fun importHanziJson(uri: Uri) {
+        btnImportHanzi.text = getString(R.string.settings_importing)
+        btnImportHanzi.isEnabled = false
+        importJob = CoroutineScope(Dispatchers.IO).launch {
+            var count = 0
+            var ok = false
+            try {
+                val content = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                if (content != null) {
+                    val db = getDictDb().writableDatabase
+                    val stmt = db.compileStatement("INSERT OR REPLACE INTO hanzi(word, pinyin, def) VALUES(?,?,?)")
+                    var txOpen = false
+                    fun insertObj(obj: JSONObject) {
+                        val word = obj.optString("word")
+                        if (word.length != 1) return
+                        stmt.bindString(1, word)
+                        stmt.bindString(2, obj.optString("pinyin", ""))
+                        stmt.bindString(3, obj.optString("explanation", ""))
+                        stmt.executeInsert()
+                        count++
+                        if (count % 5000 == 0 && txOpen) {
+                            db.setTransactionSuccessful()
+                            db.endTransaction()
+                            db.beginTransaction()
+                        }
+                    }
+                    db.beginTransaction()
+                    txOpen = true
+                    try {
+                        if (content.trimStart().startsWith("[")) {
+                            val arr = JSONArray(content)
+                            for (i in 0 until arr.length()) {
+                                insertObj(arr.getJSONObject(i))
+                            }
+                        } else {
+                            content.lineSequence().forEach { line ->
+                                val t = line.trim()
+                                if (t.isEmpty() || !t.startsWith("{")) return@forEach
+                                try {
+                                    insertObj(JSONObject(t))
+                                } catch (e: Exception) {
+                                    // 跳过坏行
+                                }
+                            }
+                        }
+                        db.setTransactionSuccessful()
+                        txOpen = false
+                    } finally {
+                        if (txOpen) {
+                            try {
+                                db.endTransaction()
+                            } catch (_: Exception) {
+                            }
+                        }
+                    }
+                    ok = true
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            val cnt = count
+            val success = ok
+            withContext(Dispatchers.Main) {
+                btnImportHanzi.text = getString(R.string.settings_import_hanzi)
+                btnImportHanzi.isEnabled = true
+                if (success) {
+                    Toast.makeText(this@MainActivity, getString(R.string.settings_import_done, cnt), Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@MainActivity, getString(R.string.settings_import_fail), Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    // 导入英文词典（ECDICT CSV 格式：word,phonetic,definition,translation,pos,collins,oxford,tag,bnc,frq,…）
+    // 流式解析（支持引号内逗号/换行），仅导入有词频或考试标注的常用词条
+    private fun importEnCsv(uri: Uri) {
+        btnImportEn.text = getString(R.string.settings_importing)
+        btnImportEn.isEnabled = false
+        importJob = CoroutineScope(Dispatchers.IO).launch {
+            var count = 0
+            var ok = false
+            try {
+                val reader = contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)
+                if (reader != null) {
+                    val db = getDictDb().writableDatabase
+                    val stmt = db.compileStatement("INSERT OR REPLACE INTO enword(word, phonetic, definition, translation) VALUES(?,?,?,?)")
+                    val fields = ArrayList<String>(13)
+                    val sb = StringBuilder()
+                    var inQuotes = false
+                    var isHeader = true
+                    var txOpen = false
+                    var done = false
+                    fun processRecord(fs: List<String>) {
+                        if (isHeader) {
+                            isHeader = false
+                            if (fs.isNotEmpty() && fs[0].lowercase() == "word") return
+                        }
+                        if (fs.size < 4) return
+                        val word = fs[0]
+                        if (word.isBlank() || word.length > 40) return
+                        val collins = fs.getOrNull(5)?.toIntOrNull() ?: 0
+                        val oxford = fs.getOrNull(6)?.toIntOrNull() ?: 0
+                        val tag = fs.getOrNull(7) ?: ""
+                        val bnc = fs.getOrNull(8)?.toIntOrNull() ?: 0
+                        val frq = fs.getOrNull(9)?.toIntOrNull() ?: 0
+                        val keep = collins > 0 || oxford > 0 || tag.isNotBlank() || bnc > 0 || frq > 0
+                        if (!keep) return
+                        stmt.bindString(1, word.lowercase())
+                        stmt.bindString(2, fs[1])
+                        stmt.bindString(3, fs[2])
+                        stmt.bindString(4, fs[3])
+                        stmt.executeInsert()
+                        count++
+                        if (count % 5000 == 0 && txOpen) {
+                            db.setTransactionSuccessful()
+                            db.endTransaction()
+                            db.beginTransaction()
+                        }
+                    }
+
+                    db.beginTransaction()
+                    txOpen = true
+                    try {
+                        val buf = CharArray(65536)
+                        while (!done) {
+                            val n = reader.read(buf)
+                            if (n < 0) break
+                            for (k in 0 until n) {
+                                val c = buf[k]
+                                if (inQuotes) {
+                                    if (c == '"') inQuotes = false
+                                    else sb.append(c)
+                                } else {
+                                    when (c) {
+                                        '"' -> inQuotes = true
+                                        ',' -> {
+                                            fields.add(sb.toString()); sb.setLength(0)
+                                        }
+                                        '\n' -> {
+                                            fields.add(sb.toString()); sb.setLength(0)
+                                            processRecord(fields)
+                                            fields.clear()
+                                        }
+                                        '\r' -> { /* 跳过 CR */ }
+                                        else -> sb.append(c)
+                                    }
+                                }
+                            }
+                        }
+                        // 文件末尾不足一行的残余记录
+                        if (sb.isNotEmpty() || fields.isNotEmpty()) {
+                            fields.add(sb.toString())
+                            processRecord(fields)
+                        }
+                        db.setTransactionSuccessful()
+                        txOpen = false
+                        done = true
+                    } finally {
+                        if (txOpen) {
+                            try {
+                                db.endTransaction()
+                            } catch (_: Exception) {
+                            }
+                        }
+                    }
+                    reader.close()
+                    ok = true
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            val cnt = count
+            val success = ok
+            withContext(Dispatchers.Main) {
+                btnImportEn.text = getString(R.string.settings_import_en)
+                btnImportEn.isEnabled = true
+                if (success) {
+                    Toast.makeText(this@MainActivity, getString(R.string.settings_import_done, cnt), Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@MainActivity, getString(R.string.settings_import_fail), Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        try {
+            bgPlayer?.takeIf { it.isPlaying }?.pause()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (settingsPrefs.getBoolean("bg_music_enabled", false)) {
+            if (bgPlayer == null) {
+                startBgMusic()
+            } else {
+                try {
+                    if (!bgPlayer!!.isPlaying) bgPlayer!!.start()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
         }
     }
 
     override fun onDestroy() {
         stopTimer()
         stopCursorBlink()
+        stopBgMusic()
+        try {
+            soundPool?.release()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        soundPool = null
         super.onDestroy()
     }
 }

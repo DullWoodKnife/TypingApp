@@ -66,4 +66,22 @@
     <string name="time_up">时间到！</string>
     <string name="rank_next_fmt">距%d分升至下一段位</string>
     <string name="rank_max">已达最高段位！</string>
+
+    <!-- 设置页 -->
+    <string name="btn_settings">设置</string>
+    <string name="settings_title">设置</string>
+    <string name="settings_version">版本</string>
+    <string name="settings_sound">音效</string>
+    <string name="settings_key_sound">键盘敲击音效</string>
+    <string name="settings_bg_music">背景音乐</string>
+    <string name="settings_pick_music">选择背景音乐</string>
+    <string name="settings_pick_music_none">未选择</string>
+    <string name="settings_dict">词典数据</string>
+    <string name="settings_import_hanzi">导入中文字典（JSON）</string>
+    <string name="settings_import_en">导入英文词典（CSV）</string>
+    <string name="settings_dict_hint">中文词典参照 chinese-xinhua 的 dict.json 格式（word/pinyin/explanation）；\n英文词典参照 ECDICT 的 CSV 格式（word,phonetic,definition,translation,…），仅导入有词频或考试标注的常用词条。\n导入后查询优先使用自定义词典，未导入时使用内置数据。</string>
+    <string name="settings_importing">导入中…</string>
+    <string name="settings_import_done">已导入 %1$d 条</string>
+    <string name="settings_import_fail">导入失败，请检查文件格式</string>
+    <string name="settings_file_chosen">已选择：%1$s</string>
 </resources>
