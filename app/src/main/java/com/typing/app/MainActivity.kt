@@ -354,7 +354,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 长按打字区：选中最近的汉字或英文单词，弹出查词 PopupWindow
-        typingTextView.onCharLongPress = { idx ->
+        typingTextView.onCharLongPress = onCharLongPress@ { idx ->
             if (isFinished || pagePractice.visibility != View.VISIBLE) return@onCharLongPress false
             val range = typingTextView.selectWordAt(idx)
             if (range.size != 2) return@onCharLongPress false
