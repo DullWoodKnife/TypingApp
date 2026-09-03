@@ -984,9 +984,9 @@ class MainActivity : AppCompatActivity() {
                 val expectC = originalText[idx]
                 val gotC = userInput[idx]
                 if (isHanziChar(expectC) && gotC.isAsciiLetter()) {
-                    // IME 组合中的字母：清掉，不计
-                    hiddenInput.setText(userInput.substring(0, idx))
-                    hiddenInput.setSelection(idx)
+                    // IME 组合中的字母（拼音/五笔编码阶段）：不播错误音，
+                    // 保留在 hiddenInput 中让输入法正常完成组合
+                    continue
                 } else {
                     playKeySound(gotC == expectC)
                 }
