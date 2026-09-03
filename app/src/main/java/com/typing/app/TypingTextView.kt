@@ -268,8 +268,9 @@ class TypingTextView @JvmOverloads constructor(
             val lineStart: Float
             val lineEnd: Float
             if (isEnglishContent) {
-                lineStart = EN_SIDE_PAD - 4f
-                lineEnd = (if (row < rowRights.size) rowRights[row] else EN_SIDE_PAD) + 4f
+                // 英文：分隔线占满整个可用宽度，各行长度一致
+                lineStart = 8f
+                lineEnd = width - 8f
             } else {
                 lineStart = gridPadding - 4f
                 lineEnd = gridPadding + charWidth * CHARS_PER_ROW + 4f
