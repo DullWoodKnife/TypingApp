@@ -2013,12 +2013,7 @@ class MainActivity : AppCompatActivity() {
                     reader.close()
                     ok = true
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-            val cnt = count
-            val success = ok
-            if (success) {
+                if (ok) {
                     settingsPrefs.edit().putBoolean("imported_en", true).apply()
                 }
             } catch (e: Exception) {
