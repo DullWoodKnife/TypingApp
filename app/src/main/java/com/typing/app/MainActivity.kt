@@ -991,6 +991,7 @@ class MainActivity : AppCompatActivity() {
                     playKeySound(gotC == expectC)
                 }
             }
+        }
 
         updateTextDisplay()
         updateStats(originalText)
