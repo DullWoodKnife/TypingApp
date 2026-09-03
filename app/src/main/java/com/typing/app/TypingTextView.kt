@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.text.TextPaint
 import android.util.AttributeSet
+import android.view.MotionEvent
 import android.view.View
 import kotlin.math.ceil
 
@@ -51,6 +52,13 @@ class TypingTextView @JvmOverloads constructor(
     var rowHeight: Float = 0f
     var charWidth: Float = 0f
     var topPadding: Float = 0f
+
+    // 长按触点坐标（ACTION_DOWN 时记录，供宿主在长按回调里查询字符下标）
+    private var downX = 0f
+    private var downY = 0f
+
+    // 外部设置的长按回调（参数：触点最近的字符下标；返回 true 表示消费）
+    var onCharLongPress: ((index: Int) -> Boolean)? = null
 
     // 排版模式：true=英文（按字符自然宽度紧排、按单词换行），false=中文（17字固定网格）
     var isEnglishContent: Boolean = false
@@ -221,6 +229,77 @@ class TypingTextView @JvmOverloads constructor(
         if (index <= 0) return 0
         val i = index.coerceAtMost((originalText.length - 1).coerceAtLeast(0))
         return if (isEnglishContent && i < charRows.size) charRows[i] else i / CHARS_PER_ROW
+    }
+
+    // 暴露触点 x/y
+    fun lastTouchX(): Float = downX
+    fun lastTouchY(): Float = downY
+
+    // 查找 (x, y) 最近的字符下标（必须在有效绘制区域内）。返回 -1 表示空文本。
+    fun indexNear(x: Float, y: Float): Int {
+        val n = originalText.length
+        if (n == 0 || rowHeight <= 0f) return -1
+        val rows = totalRows()
+        val row = ((y - topPadding) / rowHeight).toInt().coerceIn(0, rows - 1)
+        val rowStart = if (row < rowStarts.size) rowStarts[row] else n
+        if (rowStart >= n) return n - 1
+        val rowEnd = if (row + 1 < rowStarts.size) rowStarts[row + 1] else n
+        var best = rowStart
+        var bestDist = Float.MAX_VALUE
+        for (i in rowStart until rowEnd) {
+            val d = Math.abs(charXs[i] - x)
+            if (d < bestDist) {
+                bestDist = d
+                best = i
+            }
+        }
+        return best
+    }
+
+    // 给定下标，选中最近的"词"：汉字→返回该字；英文/数字→左右扩展到连续字母/数字串；
+    // 标点/空格→向两侧找最近的汉字或英文词；空 → 返回 -1。
+    fun selectWordAt(index: Int): IntArray {
+        val n = originalText.length
+        if (n == 0 || index < 0 || index >= n) return intArrayOf()
+        val ch = originalText[index]
+        if (isHanziChar(ch)) {
+            return intArrayOf(index, index + 1)
+        }
+        if (ch.isLetterOrDigit()) {
+            var s = index
+            while (s > 0 && originalText[s - 1].isLetterOrDigit()) s--
+            var e = index
+            while (e < n && originalText[e].isLetterOrDigit()) e++
+            // 如果全是 ASCII 字母/数字，归为"英文/数字词"
+            return intArrayOf(s, e)
+        }
+        // 标点/空格：左右找最近的汉字或字母串
+        var left = index - 1
+        while (left >= 0 && !isHanziChar(originalText[left]) && !originalText[left].isLetterOrDigit()) left--
+        var right = index + 1
+        while (right < n && !isHanziChar(originalText[right]) && !originalText[right].isLetterOrDigit()) right++
+        val leftDist = if (left >= 0) index - left else Int.MAX_VALUE
+        val rightDist = if (right < n) right - index else Int.MAX_VALUE
+        val pick = if (leftDist <= rightDist) left else right
+        if (pick < 0 || pick >= n) return intArrayOf()
+        return selectWordAt(pick)
+    }
+
+    private fun isHanziChar(c: Char): Boolean = c.code in 0x4E00..0x9FA5
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            downX = event.x
+            downY = event.y
+        }
+        return super.onTouchEvent(event)
+    }
+
+    override fun performLongClick(): Boolean {
+        val cb = onCharLongPress ?: return super.performLongClick()
+        val idx = indexNear(downX, downY)
+        if (idx >= 0 && cb(idx)) return true
+        return super.performLongClick()
     }
 
     override fun onDraw(canvas: Canvas) {

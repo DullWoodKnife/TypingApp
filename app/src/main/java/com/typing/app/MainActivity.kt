@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.SoundPool
@@ -16,7 +17,11 @@ import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.JsonReader
+import android.view.Gravity
 import android.view.KeyEvent
+import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
@@ -24,6 +29,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.PopupWindow
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
@@ -32,11 +38,13 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.InputStreamReader
 
 class MainActivity : AppCompatActivity() {
 
@@ -100,6 +108,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnPickMusic: Button
     private lateinit var btnImportHanzi: Button
     private lateinit var btnImportEn: Button
+    private lateinit var btnExportZhWordbook: Button
+    private lateinit var btnExportEnWordbook: Button
 
     // 音效 & 背景音乐 & 词典数据库
     private val settingsPrefs by lazy { getSharedPreferences("typing_settings", Context.MODE_PRIVATE) }
@@ -108,7 +118,13 @@ class MainActivity : AppCompatActivity() {
     private var errorSoundId = 0
     private var bgPlayer: MediaPlayer? = null
     private var dictDb: DictDbHelper? = null
-    private var importJob: kotlinx.coroutines.Job? = null
+    private var importJob: Job? = null
+
+    // 生词本（SharedPreferences 存 JSONArray，中文/英文分开；每个 key 是一行条目：词\t拼音/音标\t释义）
+    private val wordbookPrefs by lazy { getSharedPreferences("typing_wordbook", Context.MODE_PRIVATE) }
+
+    // 长按选词弹出的 PopupWindow
+    private var wordInfoPopup: PopupWindow? = null
 
     // Content list
     private lateinit var contentListTitle: TextView
@@ -272,6 +288,8 @@ class MainActivity : AppCompatActivity() {
         btnPickMusic = findViewById(R.id.btn_pick_music)
         btnImportHanzi = findViewById(R.id.btn_import_hanzi)
         btnImportEn = findViewById(R.id.btn_import_en)
+        btnExportZhWordbook = findViewById(R.id.btn_export_zh_wordbook)
+        btnExportEnWordbook = findViewById(R.id.btn_export_en_wordbook)
 
         navChallenge = findViewById(R.id.nav_challenge)
         navHome = findViewById(R.id.nav_home)
@@ -333,6 +351,21 @@ class MainActivity : AppCompatActivity() {
             if (!isFinished) {
                 focusInput()
             }
+        }
+
+        // 长按打字区：选中最近的汉字或英文单词，弹出查词 PopupWindow
+        typingTextView.onCharLongPress = { idx ->
+            if (isFinished || pagePractice.visibility != View.VISIBLE) return@onCharLongPress false
+            val range = typingTextView.selectWordAt(idx)
+            if (range.size != 2) return@onCharLongPress false
+            val s = range[0]
+            val e = range[1]
+            val content = getContent(currentContentId) ?: return@onCharLongPress false
+            val fullText = content.getString("content")
+            val word = fullText.substring(s, e)
+            if (word.isBlank()) return@onCharLongPress false
+            showWordLookupPopup(word, isHanziChar(word[0]), typingTextView.lastTouchX().toInt(), typingTextView.lastTouchY().toInt())
+            true
         }
 
         // Hidden input text watcher
@@ -406,6 +439,14 @@ class MainActivity : AppCompatActivity() {
             pickFile(REQUEST_IMPORT_EN, "*/*")
         }
 
+        btnExportZhWordbook.setOnClickListener {
+            createWordbookFile("chinese_wordbook.txt", "text/plain", REQUEST_CREATE_ZH_TXT)
+        }
+
+        btnExportEnWordbook.setOnClickListener {
+            createWordbookFile("english_wordbook.txt", "text/plain", REQUEST_CREATE_EN_TXT)
+        }
+
         // Bottom nav
         navHome.setOnClickListener { showPage("home") }
         navChallenge.setOnClickListener {
@@ -443,7 +484,11 @@ class MainActivity : AppCompatActivity() {
             "contentDetail" -> pageContentDetail.visibility = View.VISIBLE
             "records" -> pageRecords.visibility = View.VISIBLE
             "challenge" -> pageChallenge.visibility = View.VISIBLE
-            "settings" -> pageSettings.visibility = View.VISIBLE
+            "settings" -> {
+                pageSettings.visibility = View.VISIBLE
+                renderSettingsImportButtons()
+                renderWordbookButtons()
+            }
         }
 
         // Update nav active state
@@ -632,24 +677,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // 更新五笔码 + 拼音/音标释义区。汉字跟随"刚完成的字"，
-    // 英文跟随"当前正在输入的单词"（打完当前词、显示在UI上后才切换到下一个词）。
+    // 更新五笔码 + 拼音/音标释义区。**只自动显示五笔码**；拼音/音标释义由用户长按打字区触发填充。
     private fun updateHints(text: String) {
         if (isFinished || text.isEmpty()) {
             wubiHint.text = ""
-            setDictHintText("")
             return
         }
-        val idx = currentHintIndex(text).coerceIn(0, text.length - 1)
-        val ch = text[idx]
-        if (isHanziChar(ch)) {
-            updateWubiHint(text)
-            showHanziHint(ch)
-        } else {
-            // 英文/其他内容：不显示五笔码，按单词显示音标释义
-            wubiHint.text = ""
-            showEnHint(currentEnglishWord(text))
-        }
+        updateWubiHint(text)
     }
 
     private fun isHanziChar(ch: Char): Boolean {
@@ -661,60 +695,16 @@ class MainActivity : AppCompatActivity() {
         return ch.isLetter() && !isHanziChar(ch)
     }
 
+    // 是否为 ASCII 字母（A-Z / a-z）—— 用于识别 IME 组合中的临时字母
+    private fun Char.isAsciiLetter(): Boolean {
+        return this in 'A'..'Z' || this in 'a'..'z'
+    }
+
     // 设置释义文本：内容变化后回滚到顶部，保证切换字/词后新释义从开头可见
     private fun setDictHintText(text: String) {
         if (dictHint.text.toString() == text) return
         dictHint.text = text
         dictHintScroll.scrollTo(0, 0)
-    }
-
-    // 显示汉字的拼音 + 释义（多音字/多释义用分号分隔）
-    private fun showHanziHint(ch: Char) {
-        val entry = queryHanzi(ch)
-        val display = if (entry != null) {
-            "${entry.pinyin}  ${cleanDef(entry.defs)}"
-        } else {
-            ""
-        }
-        setDictHintText(display)
-    }
-
-    // 显示英文单词的音标 + 英英释义 + 英汉释义（两个释义用分号分隔）
-    private fun showEnHint(word: String) {
-        if (word.isBlank()) {
-            setDictHintText("")
-            return
-        }
-        val entry = queryEn(word)
-        val display = if (entry != null) {
-            val parts = mutableListOf<String>()
-            if (entry.phonetic.isNotBlank()) parts.add("/${entry.phonetic.trim('/')}/")
-            if (entry.definition.isNotBlank()) parts.add(cleanDef(entry.definition))
-            if (entry.translation.isNotBlank()) parts.add(cleanDef(entry.translation))
-            parts.joinToString("; ")
-        } else {
-            ""
-        }
-        setDictHintText(display)
-    }
-
-    // 计算光标位置所在的英文单词；光标处非字母（说明当前词刚打完）时向后找下一个词，
-    // 实现"当前单词输入完成显示在UI上后切换成下一个单词"
-    private fun currentEnglishWord(text: String): String {
-        if (text.isEmpty()) return ""
-        var i = userInput.length.coerceAtMost(text.length)
-        if (i >= text.length) i = text.length - 1
-        if (!isEnLetter(text[i])) {
-            var j = i
-            while (j < text.length && !isEnLetter(text[j])) j++
-            if (j >= text.length) return ""
-            i = j
-        }
-        var start = i
-        while (start > 0 && isEnLetter(text[start - 1])) start--
-        var end = i
-        while (end < text.length && isEnLetter(text[end])) end++
-        return text.substring(start, end)
     }
 
     // 清理释义文本：内部换行（含字面 \n 转义）统一替换为分号分隔
@@ -724,6 +714,144 @@ class MainActivity : AppCompatActivity() {
             .replace("\r", "")
             .replace("\n", "; ")
             .trim()
+    }
+
+    // ===== 长按查词 / 生词本 =====
+
+    private val NOT_FOUND_TXT = "该字词典中未收录"
+
+    // 在"正在输入..."下方的 dict_hint 区显示释义；单词未收录显示提示文案
+    private fun showWordInfoInDictHint(word: String, isHanzi: Boolean) {
+        val display: String
+        if (isHanzi) {
+            val entry = queryHanzi(word[0])
+            display = if (entry != null) "${entry.pinyin}  ${cleanDef(entry.defs)}" else NOT_FOUND_TXT
+        } else {
+            val entry = queryEn(word)
+            display = if (entry != null) {
+                val parts = mutableListOf<String>()
+                if (entry.phonetic.isNotBlank()) parts.add("/${entry.phonetic.trim('/')}/")
+                if (entry.definition.isNotBlank()) parts.add(cleanDef(entry.definition))
+                if (entry.translation.isNotBlank()) parts.add(cleanDef(entry.translation))
+                if (parts.isEmpty()) NOT_FOUND_TXT else parts.joinToString("; ")
+            } else NOT_FOUND_TXT
+        }
+        setDictHintText(display)
+    }
+
+    // 弹出"添加到生词本"小卡片；长按位置附近
+    private fun showWordLookupPopup(word: String, isHanzi: Boolean, anchorX: Int, anchorY: Int) {
+        // 先填充释义
+        showWordInfoInDictHint(word, isHanzi)
+        // 弹窗
+        wordInfoPopup?.dismiss()
+        val view = LayoutInflater.from(this).inflate(R.layout.popup_wordbook, null)
+        val tvWord = view.findViewById<TextView>(R.id.popup_word)
+        val tvAdd = view.findViewById<TextView>(R.id.popup_add)
+        tvWord.text = word
+        tvAdd.text = "添加到生词本"
+        val pw = PopupWindow(view, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)
+        pw.setBackgroundDrawable(ColorDrawable(0xCCFFFFFF.toInt()))
+        pw.elevation = 12f
+        // 计算锚点：基于 TypingTextView 在窗口中的位置 + 触摸坐标
+        val loc = IntArray(2)
+        typingTextView.getLocationOnScreen(loc)
+        val x = (loc[0] + anchorX).coerceAtLeast(8)
+        // 在触摸点上方 80dp 弹出，避免被键盘或软键盘遮挡
+        val y = (loc[1] + anchorY - (80 * resources.displayMetrics.density).toInt()).coerceAtLeast(loc[1] - 200)
+        pw.showAtLocation(typingTextView, Gravity.NO_GRAVITY, x, y)
+        // 点 PopupWindow 内部"添加到生词本"按钮
+        tvAdd.setOnClickListener {
+            addToWordbook(word, isHanzi)
+            pw.dismiss()
+        }
+        // 点 PopupWindow 其它区域：点击事件已被 PopupWindow 拦截；外部触摸自动 dismiss（下面配置）
+        pw.setTouchInterceptor { _, ev ->
+            if (ev.actionMasked == MotionEvent.ACTION_UP) {
+                val dismiss = if (ev.x >= 0 && ev.x < view.width && ev.y >= 0 && ev.y < view.height) {
+                    // 点在 PopupWindow 内（且没命中"添加到生词本"已单独处理）→ 不消失
+                    !isClickOnView(tvAdd, ev.rawX.toInt(), ev.rawY.toInt())
+                } else true
+                if (dismiss) {
+                    pw.dismiss()
+                    true
+                } else false
+            } else false
+        }
+        pw.isOutsideTouchable = true
+        pw.setOnDismissListener {
+            wordInfoPopup = null
+        }
+        wordInfoPopup = pw
+    }
+
+    private fun isClickOnView(v: View, rawX: Int, rawY: Int): Boolean {
+        val loc = IntArray(2)
+        v.getLocationOnScreen(loc)
+        return rawX >= loc[0] && rawX <= loc[0] + v.width && rawY >= loc[1] && rawY <= loc[1] + v.height
+    }
+
+    private fun addToWordbook(word: String, isHanzi: Boolean) {
+        val key = if (isHanzi) "zh_wordbook" else "en_wordbook"
+        val lines = wordbookPrefs.getStringSet(key, null)?.toMutableSet() ?: mutableSetOf()
+        val entry = buildWordbookLine(word, isHanzi)
+        if (lines.contains(entry)) {
+            Toast.makeText(this, "已在生词本中", Toast.LENGTH_SHORT).show()
+            return
+        }
+        lines.add(entry)
+        wordbookPrefs.edit().putStringSet(key, lines).apply()
+        Toast.makeText(this, "已加入生词本", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun buildWordbookLine(word: String, isHanzi: Boolean): String {
+        return if (isHanzi) {
+            val entry = queryHanzi(word[0])
+            val pinyin = entry?.pinyin ?: ""
+            val def = entry?.let { cleanDef(it.defs) } ?: NOT_FOUND_TXT
+            "$word\t$pinyin\t$def"
+        } else {
+            val entry = queryEn(word)
+            val phonetic = entry?.phonetic ?: ""
+            val definition = entry?.let { cleanDef(it.definition) } ?: ""
+            val translation = entry?.let { cleanDef(it.translation) } ?: ""
+            "$word\t$phonetic\t$definition; $translation"
+        }
+    }
+
+    private fun getWordbookLines(isHanzi: Boolean): List<String> {
+        val key = if (isHanzi) "zh_wordbook" else "en_wordbook"
+        val set = wordbookPrefs.getStringSet(key, null) ?: return emptyList()
+        return set.toSortedSet().toList()
+    }
+
+    private fun createWordbookFile(defaultName: String, mime: String, requestCode: Int) {
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+        intent.addCategory(Intent.CATEGORY_OPENABLE)
+        intent.type = mime
+        intent.putExtra(Intent.EXTRA_TITLE, defaultName)
+        try {
+            startActivityForResult(intent, requestCode)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "无法创建文件", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun writeWordbookToUri(uri: Uri, isHanzi: Boolean) {
+        val lines = getWordbookLines(isHanzi)
+        try {
+            contentResolver.openOutputStream(uri)?.use { out ->
+                out.write(("\uFEFF").toByteArray(Charsets.UTF_8))
+                for (l in lines) {
+                    out.write((l + "\n").toByteArray(Charsets.UTF_8))
+                }
+            }
+            Toast.makeText(this, "已导出 ${lines.size} 条", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "导出失败", Toast.LENGTH_SHORT).show()
+        }
     }
 
     // ===== Practice =====
@@ -845,14 +973,24 @@ class MainActivity : AppCompatActivity() {
             text
         }
 
-        // 键盘音效：每个新增字符都按对/错播放一次敲击音/错误音。
-        // 中文 IME 会一次性 commit 多个汉字，需逐字符触发，才能与英文逐键音效一致。
+// 键盘音效：每个新增字符都按对/错播放一次敲击音/错误音。
+        // 中文 IME 会一次性 commit 多个汉字，需逐字符触发。
+        // 中文练习中 IME（拼音/五笔等）在组合时也会 commit 字母到 hiddenInput
+        // （如图中打 d g h 选中汉字前），此时不该判为错误——只要原文对应位置是汉字，
+        // 新字符是 ASCII 字母就视作 IME 正在组成汉字（无效输入），不计数、不播错误音。
         if (userInput.length > prevLen && originalText.isNotEmpty()) {
             val end = minOf(userInput.length, originalText.length)
             for (idx in prevLen until end) {
-                playKeySound(userInput[idx] == originalText[idx])
+                val expectC = originalText[idx]
+                val gotC = userInput[idx]
+                if (isHanziChar(expectC) && gotC.isAsciiLetter()) {
+                    // IME 组合中的字母：清掉，不计
+                    hiddenInput.setText(userInput.substring(0, idx))
+                    hiddenInput.setSelection(idx)
+                } else {
+                    playKeySound(gotC == expectC)
+                }
             }
-        }
 
         updateTextDisplay()
         updateStats(originalText)
@@ -1543,6 +1681,8 @@ class MainActivity : AppCompatActivity() {
         private const val REQUEST_PICK_MUSIC = 1001
         private const val REQUEST_IMPORT_HANZI = 1002
         private const val REQUEST_IMPORT_EN = 1003
+        private const val REQUEST_CREATE_ZH_TXT = 1004
+        private const val REQUEST_CREATE_EN_TXT = 1005
     }
 
     private var soundsReady = 0
@@ -1634,6 +1774,24 @@ class MainActivity : AppCompatActivity() {
             settingsPrefs.edit().putBoolean("bg_music_enabled", checked).apply()
             if (checked) startBgMusic() else stopBgMusic()
         }
+        renderSettingsImportButtons()
+        renderWordbookButtons()
+    }
+
+    // 导入按钮文字：已导入时追加"（已导入"）
+    private fun renderSettingsImportButtons() {
+        val hzImported = settingsPrefs.getBoolean("imported_hanzi", false)
+        val enImported = settingsPrefs.getBoolean("imported_en", false)
+        btnImportHanzi.text = getString(R.string.settings_import_hanzi) + if (hzImported) getString(R.string.settings_imported_suffix) else ""
+        btnImportEn.text = getString(R.string.settings_import_en) + if (enImported) getString(R.string.settings_imported_suffix) else ""
+    }
+
+    // 生词本按钮：空时禁用
+    private fun renderWordbookButtons() {
+        val zhCount = getWordbookLines(true).size
+        val enCount = getWordbookLines(false).size
+        btnExportZhWordbook.isEnabled = zhCount > 0
+        btnExportEnWordbook.isEnabled = enCount > 0
     }
 
     private fun pickFile(requestCode: Int, mime: String) {
@@ -1679,11 +1837,14 @@ class MainActivity : AppCompatActivity() {
             }
             REQUEST_IMPORT_HANZI -> importHanziJson(uri)
             REQUEST_IMPORT_EN -> importEnCsv(uri)
+            REQUEST_CREATE_ZH_TXT -> writeWordbookToUri(uri, true)
+            REQUEST_CREATE_EN_TXT -> writeWordbookToUri(uri, false)
         }
     }
 
-    // 导入中文字典（chinese-xinhua dict.json 格式：word/pinyin/explanation，
-    // 支持整体 JSON 数组或每行一个 JSON 对象两种布局）
+    // 导入中文字典（chinese-xinhua dict.json 格式：word/pinyin/explanation）。
+    // **流式解析**：android.util.JsonReader 不把整文件读入内存，可安全处理 26M+ JSON。
+    // 26M JSON 之前用 JSONArray(content) 会 OOM 崩溃，故此处改用 JsonReader。
     private fun importHanziJson(uri: Uri) {
         btnImportHanzi.text = getString(R.string.settings_importing)
         btnImportHanzi.isEnabled = false
@@ -1691,55 +1852,54 @@ class MainActivity : AppCompatActivity() {
             var count = 0
             var ok = false
             try {
-                val content = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-                if (content != null) {
-                    val db = getDictDb().writableDatabase
-                    val stmt = db.compileStatement("INSERT OR REPLACE INTO hanzi(word, pinyin, def) VALUES(?,?,?)")
-                    var txOpen = false
-                    fun insertObj(obj: JSONObject) {
-                        val word = obj.optString("word")
-                        if (word.length != 1) return
-                        stmt.bindString(1, word)
-                        stmt.bindString(2, obj.optString("pinyin", ""))
-                        stmt.bindString(3, obj.optString("explanation", ""))
-                        stmt.executeInsert()
-                        count++
-                        if (count % 5000 == 0 && txOpen) {
-                            db.setTransactionSuccessful()
-                            db.endTransaction()
-                            db.beginTransaction()
-                        }
-                    }
-                    db.beginTransaction()
-                    txOpen = true
-                    try {
-                        if (content.trimStart().startsWith("[")) {
-                            val arr = JSONArray(content)
-                            for (i in 0 until arr.length()) {
-                                insertObj(arr.getJSONObject(i))
-                            }
-                        } else {
-                            content.lineSequence().forEach { line ->
-                                val t = line.trim()
-                                if (t.isEmpty() || !t.startsWith("{")) return@forEach
-                                try {
-                                    insertObj(JSONObject(t))
-                                } catch (e: Exception) {
-                                    // 跳过坏行
+                val db = getDictDb().writableDatabase
+                val stmt = db.compileStatement("INSERT OR REPLACE INTO hanzi(word, pinyin, def) VALUES(?,?,?)")
+                db.beginTransaction()
+                try {
+                    contentResolver.openInputStream(uri)?.use { ins ->
+                        InputStreamReader(ins, Charsets.UTF_8).use { isr ->
+                            JsonReader(isr).use { jr ->
+                                jr.beginArray()
+                                while (jr.hasNext()) {
+                                    jr.beginObject()
+                                    var word = ""
+                                    var pinyin = ""
+                                    var explanation = ""
+                                    while (jr.hasNext()) {
+                                        val name = jr.nextName()
+                                        when (name) {
+                                            "word" -> word = jr.nextString()
+                                            "pinyin" -> pinyin = jr.nextString()
+                                            "explanation" -> explanation = jr.nextString()
+                                            else -> jr.skipValue()
+                                        }
+                                    }
+                                    jr.endObject()
+                                    if (word.length == 1) {
+                                        stmt.bindString(1, word)
+                                        stmt.bindString(2, pinyin)
+                                        stmt.bindString(3, explanation)
+                                        stmt.executeInsert()
+                                        count++
+                                        // 每 5000 条提交一次事务，减少 IO 抖动
+                                        if (count % 5000 == 0) {
+                                            db.setTransactionSuccessful()
+                                            db.endTransaction()
+                                            db.beginTransaction()
+                                        }
+                                    }
                                 }
-                            }
-                        }
-                        db.setTransactionSuccessful()
-                        txOpen = false
-                    } finally {
-                        if (txOpen) {
-                            try {
-                                db.endTransaction()
-                            } catch (_: Exception) {
+                                jr.endArray()
                             }
                         }
                     }
+                    db.setTransactionSuccessful()
                     ok = true
+                } finally {
+                    try { db.endTransaction() } catch (_: Exception) {}
+                }
+                if (ok) {
+                    settingsPrefs.edit().putBoolean("imported_hanzi", true).apply()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -1747,8 +1907,8 @@ class MainActivity : AppCompatActivity() {
             val cnt = count
             val success = ok
             withContext(Dispatchers.Main) {
-                btnImportHanzi.text = getString(R.string.settings_import_hanzi)
                 btnImportHanzi.isEnabled = true
+                renderSettingsImportButtons()
                 if (success) {
                     Toast.makeText(this@MainActivity, getString(R.string.settings_import_done, cnt), Toast.LENGTH_SHORT).show()
                 } else {
@@ -1858,9 +2018,17 @@ class MainActivity : AppCompatActivity() {
             }
             val cnt = count
             val success = ok
+            if (success) {
+                    settingsPrefs.edit().putBoolean("imported_en", true).apply()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            val cnt = count
+            val success = ok
             withContext(Dispatchers.Main) {
-                btnImportEn.text = getString(R.string.settings_import_en)
                 btnImportEn.isEnabled = true
+                renderSettingsImportButtons()
                 if (success) {
                     Toast.makeText(this@MainActivity, getString(R.string.settings_import_done, cnt), Toast.LENGTH_SHORT).show()
                 } else {
@@ -1872,6 +2040,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        wordInfoPopup?.dismiss()
+        wordInfoPopup = null
         try {
             bgPlayer?.takeIf { it.isPlaying }?.pause()
         } catch (e: Exception) {

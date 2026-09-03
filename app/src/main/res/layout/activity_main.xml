@@ -939,6 +939,36 @@
                         app:strokeColor="@color/destructive"
                         android:textColor="@color/destructive" />
 
+                    <!-- 生词本导出 -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_wordbook"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="4dp" />
+
+                    <Button
+                        android:id="@+id/btn_export_zh_wordbook"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_export_zh_wordbook"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        app:strokeColor="@color/destructive"
+                        android:textColor="@color/destructive"
+                        android:layout_marginBottom="8dp" />
+
+                    <Button
+                        android:id="@+id/btn_export_en_wordbook"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_export_en_wordbook"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        app:strokeColor="@color/destructive"
+                        android:textColor="@color/destructive" />
+
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

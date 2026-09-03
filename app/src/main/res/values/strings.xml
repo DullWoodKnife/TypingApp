@@ -84,4 +84,8 @@
     <string name="settings_import_done">已导入 %1$d 条</string>
     <string name="settings_import_fail">导入失败，请检查文件格式</string>
     <string name="settings_file_chosen">已选择：%1$s</string>
+    <string name="settings_wordbook">生词本</string>
+    <string name="settings_export_zh_wordbook">导出中文生字本 (txt)</string>
+    <string name="settings_export_en_wordbook">导出英文生词本 (txt)</string>
+    <string name="settings_imported_suffix">（已导入）</string>
 </resources>
