@@ -342,6 +342,8 @@ class MainActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) {
                 if (isFinished || isComposing) return
                 handleInput(s?.toString() ?: "")
+                // 始终把隐藏输入框的光标拉回末尾，避免左/右移光标后按删除键删错字符
+                try { hiddenInput.setSelection(hiddenInput.text.length) } catch (_: Exception) {}
             }
         })
 
@@ -843,11 +845,12 @@ class MainActivity : AppCompatActivity() {
             text
         }
 
-        // 键盘音效：新增字符时按对/错播放敲击音/错误音
+        // 键盘音效：每个新增字符都按对/错播放一次敲击音/错误音。
+        // 中文 IME 会一次性 commit 多个汉字，需逐字符触发，才能与英文逐键音效一致。
         if (userInput.length > prevLen && originalText.isNotEmpty()) {
-            val pos = userInput.length - 1
-            if (pos < originalText.length) {
-                playKeySound(userInput[pos] == originalText[pos])
+            val end = minOf(userInput.length, originalText.length)
+            for (idx in prevLen until end) {
+                playKeySound(userInput[idx] == originalText[idx])
             }
         }
 
@@ -1448,6 +1451,20 @@ class MainActivity : AppCompatActivity() {
     // 物理键盘直输兜底：焦点不在输入框时（如误触其他区域），直接接管按键，
     // 走与软键盘一致的 handleInput 流程；焦点在输入框时交给系统（物理键直接进 EditText / IME）
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // 练习页中，方向键/左右键一律把隐藏输入框光标拉回末尾，不允许移动光标，
+        // 否则界面光标不动、但按删除键会删掉“移动后位置”的字符（错位删除）。
+        if (!isFinished && pagePractice.visibility == View.VISIBLE &&
+            event.action == KeyEvent.ACTION_DOWN &&
+            (event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
+             event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ||
+             event.keyCode == KeyEvent.KEYCODE_DPAD_UP ||
+             event.keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
+             event.keyCode == KeyEvent.KEYCODE_MOVE_END ||
+             event.keyCode == KeyEvent.KEYCODE_MOVE_HOME)
+        ) {
+            try { hiddenInput.setSelection(hiddenInput.text.length) } catch (_: Exception) {}
+            return true
+        }
         if (!isFinished && event.action == KeyEvent.ACTION_DOWN &&
             pagePractice.visibility == View.VISIBLE && !hiddenInput.hasFocus()
         ) {
