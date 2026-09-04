@@ -657,9 +657,8 @@ class MainActivity : AppCompatActivity() {
         return EnEntry("", "", zh)
     }
 
-    // 在"正在输入…"同行最右侧，显示光标当前位置汉字的86版五笔拆字（完整码,简码）。
-    // 跟随"当前字"：userInput.length>0 时取 text[userInput.length-1]（已显示在UI上的当前字），
-    // 否则取 text[0]（准备输入的第一个字）。输入完成显示到UI后才切换到下一个字。
+    // 在"正在输入…"同行最右侧，显示光标**右侧**汉字的86版五笔拆字（完整码,简码）。
+    // 光标位于 userInput.length 处，其右侧待输入的汉字下标为 userInput.length。
     private fun updateWubiHint(text: String) {
         val idx = currentHintIndex(text)
         val code = if (idx >= 0 && idx < text.length) getWubiCode(text[idx]) else ""
@@ -668,12 +667,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // 计算当前应当显示提示的字符下标：已完成并显示在 UI 上的那个字
+    // 计算光标右侧待输入汉字的字符下标（即下一个要打的字）。
+    // userInput 为空时光标在 0，右侧字为 text[0]；输入若干字后光标在 userInput.length，
+    // 右侧待写字为 text[userInput.length]。
     private fun currentHintIndex(text: String): Int {
         return when {
             isFinished -> -1
-            userInput.isEmpty() -> 0
-            else -> (userInput.length - 1).coerceAtMost(text.length - 1)
+            else -> userInput.length.coerceAtMost(text.length - 1)
         }
     }
 
