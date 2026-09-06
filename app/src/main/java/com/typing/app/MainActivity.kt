@@ -972,6 +972,7 @@ class MainActivity : AppCompatActivity() {
     private fun handleInput(text: String) {
         val content = getContent(currentContentId) ?: return
         val originalText = content.getString("content")
+        val prevInput = userInput
         val prevLen = userInput.length
 
         if (!isRunning && text.isNotEmpty()) {
