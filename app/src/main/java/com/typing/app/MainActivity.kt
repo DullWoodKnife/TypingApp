@@ -41,6 +41,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileWriter
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -120,8 +122,10 @@ class MainActivity : AppCompatActivity() {
     private var dictDb: DictDbHelper? = null
     private var importJob: Job? = null
 
-    // 生词本（SharedPreferences 存 JSONArray，中文/英文分开；每个 key 是一行条目：词\t拼音/音标\t释义）
-    private val wordbookPrefs by lazy { getSharedPreferences("typing_wordbook", Context.MODE_PRIVATE) }
+    // 生词本：JSON 文件存储（中文/英文分开，每个 key 是一行条目：词\t拼音/音标\t释义）
+    private val wordbookDir by lazy { File(filesDir, "wordbook").apply { if (!exists()) mkdirs() } }
+    private val zhWordbookFile by lazy { File(wordbookDir, "zh_wordbook.json") }
+    private val enWordbookFile by lazy { File(wordbookDir, "en_wordbook.json") }
 
     // 长按选词弹出的 PopupWindow
     private var wordInfoPopup: PopupWindow? = null
@@ -791,17 +795,33 @@ class MainActivity : AppCompatActivity() {
         return rawX >= loc[0] && rawX <= loc[0] + v.width && rawY >= loc[1] && rawY <= loc[1] + v.height
     }
 
+    private fun getWordbookLines(isHanzi: Boolean): List<String> {
+        val file = if (isHanzi) zhWordbookFile else enWordbookFile
+        if (!file.exists()) return emptyList()
+        return try {
+            val json = file.readText()
+            val arr = JSONArray(json)
+            List(arr.length()) { arr.getString(it) }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     private fun addToWordbook(word: String, isHanzi: Boolean) {
-        val key = if (isHanzi) "zh_wordbook" else "en_wordbook"
-        val lines = wordbookPrefs.getStringSet(key, null)?.toMutableSet() ?: mutableSetOf()
+        val file = if (isHanzi) zhWordbookFile else enWordbookFile
+        val lines = getWordbookLines(isHanzi).toMutableList()
         val entry = buildWordbookLine(word, isHanzi)
         if (lines.contains(entry)) {
             Toast.makeText(this, "已在生词本中", Toast.LENGTH_SHORT).show()
             return
         }
         lines.add(entry)
-        wordbookPrefs.edit().putStringSet(key, lines).apply()
-        Toast.makeText(this, "已加入生词本", Toast.LENGTH_SHORT).show()
+        try {
+            file.writeText(JSONArray(lines).toString())
+            Toast.makeText(this, "已加入生词本", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "加入失败", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun buildWordbookLine(word: String, isHanzi: Boolean): String {
@@ -819,11 +839,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun getWordbookLines(isHanzi: Boolean): List<String> {
-        val key = if (isHanzi) "zh_wordbook" else "en_wordbook"
-        val set = wordbookPrefs.getStringSet(key, null) ?: return emptyList()
-        return set.toSortedSet().toList()
-    }
 
     private fun createWordbookFile(defaultName: String, mime: String, requestCode: Int) {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
@@ -976,18 +991,16 @@ class MainActivity : AppCompatActivity() {
 // 键盘音效：每个新增字符都按对/错播放一次敲击音/错误音。
         // 中文 IME 会一次性 commit 多个汉字，需逐字符触发。
         // 中文练习中 IME（拼音/五笔等）在组合时也会 commit 字母到 hiddenInput
-        // （如图中打 d g h 选中汉字前），此时不该判为错误——只要原文对应位置是汉字，
-        // 新字符是 ASCII 字母就视作 IME 正在组成汉字（无效输入），不计数、不播错误音。
+        // （如图中打 d g h 选中汉字前），此时不该判为错误——只要原文含汉字
+        // 且新增字符全是 ASCII 字母，整体视为 IME 组合阶段，不播任何音效。
         if (userInput.length > prevLen && originalText.isNotEmpty()) {
             val end = minOf(userInput.length, originalText.length)
-            for (idx in prevLen until end) {
-                val expectC = originalText[idx]
-                val gotC = userInput[idx]
-                if (isHanziChar(expectC) && gotC.isAsciiLetter()) {
-                    // IME 组合中的字母（拼音/五笔编码阶段）：不播错误音，
-                    // 保留在 hiddenInput 中让输入法正常完成组合
-                    continue
-                } else {
+            val isChinese = originalText.any { isHanziChar(it) }
+            val allNewAreAscii = (prevLen until end).all { userInput[it].isAsciiLetter() }
+            if (!(isChinese && allNewAreAscii)) {
+                for (idx in prevLen until end) {
+                    val expectC = originalText[idx]
+                    val gotC = userInput[idx]
                     playKeySound(gotC == expectC)
                 }
             }
