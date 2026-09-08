@@ -65,6 +65,32 @@ class TypingTextView @JvmOverloads constructor(
     // 外部设置的长按回调（参数：触点最近的字符下标；返回 true 表示消费）
     var onCharLongPress: ((index: Int) -> Boolean)? = null
 
+    // ===== 选中/高亮/前后拖动选择 =====
+    // 选择范围（字符下标，右开区间），-1 表示未选择
+    private var selStart = -1
+    private var selEnd = -1
+    // 拖动手柄状态：0=无, 1=起点手柄, 2=终点手柄
+    private var draggingHandle = 0
+    private val handleRadius = 18f
+    private val handleHitRadius = 46f
+    private var startHandleX = 0f
+    private var startHandleY = 0f
+    private var endHandleX = 0f
+    private var endHandleY = 0f
+
+    // 选择变化回调：拖动前后手柄时通知宿主刷新查词
+    var onSelectionChanged: ((start: Int, end: Int) -> Unit)? = null
+    var onSelectionDismissed: (() -> Unit)? = null
+
+    private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#40C4FF")
+        style = Paint.Style.FILL
+    }
+    private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#00BCD4")
+        style = Paint.Style.FILL
+    }
+
     // 排版模式：true=英文（按字符自然宽度紧排、按单词换行），false=中文（17字固定网格）
     var isEnglishContent: Boolean = false
         private set
@@ -293,17 +319,102 @@ class TypingTextView @JvmOverloads constructor(
     private fun isHanziChar(c: Char): Boolean = c.code in 0x4E00..0x9FA5
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            downX = event.x
-            downY = event.y
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x
+                downY = event.y
+                // 若已有选择，判断是否点在某个手柄上，进入拖动手柄状态（前后扩展选择）
+                if (selStart in 0 until n_() && selEnd in 0..n_()) {
+                    val ds = dist(startHandleX, startHandleY, event.x, event.y)
+                    val de = dist(endHandleX, endHandleY, event.x, event.y)
+                    if (ds <= handleHitRadius && ds <= de) {
+                        draggingHandle = 1
+                        parent?.requestDisallowInterceptTouchEvent(true)
+                        return true
+                    } else if (de <= handleHitRadius) {
+                        draggingHandle = 2
+                        parent?.requestDisallowInterceptTouchEvent(true)
+                        return true
+                    }
+                }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (draggingHandle != 0) {
+                    val idx = indexNear(event.x, event.y)
+                    if (idx >= 0) {
+                        if (draggingHandle == 1) {
+                            val newStart = if (idx <= selEnd) idx else selEnd
+                            if (newStart != selStart) {
+                                selStart = newStart
+                                updateHandlePositions()
+                                onSelectionChanged?.invoke(selStart, selEnd)
+                                invalidate()
+                            }
+                        } else {
+                            val newEnd = if (idx >= selStart) idx + 1 else selStart + 1
+                            val capped = newEnd.coerceAtMost(n_())
+                            if (capped != selEnd) {
+                                selEnd = capped
+                                updateHandlePositions()
+                                onSelectionChanged?.invoke(selStart, selEnd)
+                                invalidate()
+                            }
+                        }
+                    }
+                    return true
+                }
+            }
+            MotionEvent.ACTION_UP -> {
+                if (draggingHandle != 0) {
+                    draggingHandle = 0
+                    parent?.requestDisallowInterceptTouchEvent(false)
+                    return true
+                }
+            }
         }
         return super.onTouchEvent(event)
+    }
+
+    private fun n_(): Int = originalText.length
+
+    private fun dist(x1: Float, y1: Float, x2: Float, y2: Float): Float {
+        val dx = x1 - x2; val dy = y1 - y2
+        return Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
+    }
+
+    // 依据当前选择边界，在屏幕上定位起止手柄的坐标（并缓存供触摸检测与绘制使用）
+    private fun updateHandlePositions() {
+        if (selStart in 0 until n_()) {
+            val r1 = charRows[selStart]
+            startHandleX = charXs[selStart]
+            startHandleY = topPadding + r1 * rowHeight + rowHeight * 0.25f
+        }
+        if (selEnd in 1..n_()) {
+            val last = selEnd - 1
+            val r2 = charRows[last]
+            var xx = charXs[last]
+            if (isEnglishContent) xx += textPaint.measureText(originalText[last].toString())
+            else xx += charWidth
+            endHandleX = xx
+            endHandleY = topPadding + r2 * rowHeight + rowHeight * 0.25f
+        }
     }
 
     override fun performLongClick(): Boolean {
         val cb = onCharLongPress ?: return super.performLongClick()
         val idx = indexNear(downX, downY)
-        if (idx >= 0 && cb(idx)) return true
+        if (idx >= 0 && cb(idx)) {
+            // 长按成功：记录选择范围并绘制高亮与手柄
+            val range = selectWordAt(idx)
+            if (range.size == 2) {
+                selStart = range[0]
+                selEnd = range[1]
+                updateHandlePositions()
+                onSelectionChanged?.invoke(selStart, selEnd)
+                invalidate()
+            }
+            return true
+        }
         return super.performLongClick()
     }
 
@@ -332,6 +443,22 @@ class TypingTextView @JvmOverloads constructor(
 
             // === Original text at 25% of row ===
             val originalBaseline = rowTop + rowHeight * 0.25f
+
+            // === 选中词高亮背景（整字背景色块）===
+            if (selStart in 0..n && selEnd in selStart..n && selEnd > selStart) {
+                val hs = maxOf(selStart, rowStart)
+                val he = minOf(selEnd, rowEnd)
+                if (he > hs) {
+                    var hLeft = charXs[hs]
+                    var hRight = charXs[he - 1]
+                    if (isEnglishContent) hRight += textPaint.measureText(originalText[he - 1].toString())
+                    else hRight += charWidth
+                    val top = rowTop + rowHeight * 0.12f
+                    val bottom = rowTop + rowHeight * 0.34f
+                    canvas.drawRoundRect(hLeft, top, hRight, bottom, 10f, 10f, highlightPaint)
+                }
+            }
+
             for (i in rowStart until rowEnd) {
                 textPaint.color = getCharColor(i)
                 canvas.drawText(originalText[i].toString(), charXs[i], originalBaseline, textPaint)
@@ -383,6 +510,12 @@ class TypingTextView @JvmOverloads constructor(
             val cursorBottom = inputBaseline + fm.descent + 2f
 
             canvas.drawLine(cursorX, cursorTop, cursorX, cursorBottom, cursorPaint)
+        }
+
+        // === 选中词两侧的拖动手柄（前后扩展选择）===
+        if (selStart in 0 until n && selEnd in (selStart + 1)..n) {
+            canvas.drawCircle(startHandleX, startHandleY, handleRadius, handlePaint)
+            canvas.drawCircle(endHandleX, endHandleY, handleRadius, handlePaint)
         }
     }
 
