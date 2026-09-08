@@ -444,7 +444,7 @@ class TypingTextView @JvmOverloads constructor(
             // === Original text at 25% of row ===
             val originalBaseline = rowTop + rowHeight * 0.25f
 
-            // === 选中词高亮背景（整字背景色块）===
+            // === 选中词高亮背景（与字形实际高度一致的矩形色块）===
             if (selStart in 0..n && selEnd in selStart..n && selEnd > selStart) {
                 val hs = maxOf(selStart, rowStart)
                 val he = minOf(selEnd, rowEnd)
@@ -453,9 +453,10 @@ class TypingTextView @JvmOverloads constructor(
                     var hRight = charXs[he - 1]
                     if (isEnglishContent) hRight += textPaint.measureText(originalText[he - 1].toString())
                     else hRight += charWidth
-                    val top = rowTop + rowHeight * 0.12f
-                    val bottom = rowTop + rowHeight * 0.34f
-                    canvas.drawRoundRect(hLeft, top, hRight, bottom, 10f, 10f, highlightPaint)
+                    // 依据字体的 ascent/descent 计算与字形实际高度匹配的矩形上下边界
+                    val glyphTop = originalBaseline + fm.ascent - 2f
+                    val glyphBottom = originalBaseline + fm.descent + 2f
+                    canvas.drawRect(hLeft, glyphTop, hRight, glyphBottom, highlightPaint)
                 }
             }
 
