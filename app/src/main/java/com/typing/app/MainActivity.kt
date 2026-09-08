@@ -1823,8 +1823,10 @@ class MainActivity : AppCompatActivity() {
     private fun renderWordbookButtons() {
         val zhCount = getWordbookLines(true).size
         val enCount = getWordbookLines(false).size
-        btnExportZhWordbook.isEnabled = zhCount > 0
-        btnExportEnWordbook.isEnabled = enCount > 0
+        // 导出按钮始终可点击：点击后弹出系统"保存到文件"选择器，由用户指定保存路径。
+        // 即便词本为空也允许打开选择器（导出空文件），避免按钮被禁用后点击毫无反应。
+        btnExportZhWordbook.isEnabled = true
+        btnExportEnWordbook.isEnabled = true
     }
 
     private fun pickFile(requestCode: Int, mime: String) {
