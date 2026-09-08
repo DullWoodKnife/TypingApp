@@ -387,6 +387,22 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
+        // 拖动前后选择手柄时，用新选中的词刷新查词弹窗
+        typingTextView.onSelectionChanged = ls@{ start, end ->
+            if (isFinished || pagePractice.visibility != View.VISIBLE) return@ls
+            val content = getContent(currentContentId) ?: return@ls
+            val fullText = content.getString("content")
+            if (start in 0 until fullText.length && end in (start + 1)..fullText.length) {
+                val word = fullText.substring(start, end)
+                if (word.isNotBlank()) {
+                    showWordLookupPopup(word, isHanziChar(word[0]), typingTextView.lastTouchX().toInt(), typingTextView.lastTouchY().toInt())
+                }
+            }
+        }
+        typingTextView.onSelectionDismissed = {
+            if (!isFinished) focusInput()
+        }
+
         // Hidden input text watcher
         hiddenInput.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
