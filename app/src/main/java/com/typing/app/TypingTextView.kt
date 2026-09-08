@@ -337,8 +337,13 @@ class TypingTextView @JvmOverloads constructor(
             val inputEnd = minOf(userInput.length, rowEnd)
             if (inputEnd > rowStart) {
                 textPaint.color = colorInputText
+                // 以行首 x 为起点，按每个字符自身的实际宽度逐步推进，
+                // 避免错误字符（比参考槽位更宽）溢出到下一槽位造成字符重叠。
+                var ix = charXs[rowStart]
                 for (i in rowStart until inputEnd) {
-                    canvas.drawText(userInput[i].toString(), charXs[i], inputBaseline, textPaint)
+                    val cs = userInput[i].toString()
+                    canvas.drawText(cs, ix, inputBaseline, textPaint)
+                    ix += textPaint.measureText(cs)
                 }
             }
 
