@@ -16,6 +16,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
+import android.text.Spanned
 import android.text.TextWatcher
 import android.util.JsonReader
 import android.view.Gravity
@@ -391,7 +392,21 @@ class MainActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                if (isFinished || isComposing) return
+                if (isFinished) return
+                // 用 SPAN_COMPOSING 动态检测拼音/五笔 IME 组合输入：
+                // 组合未提交前（如 "gu"）只是临时预览，不作为真实输入，避免提前报红。
+                val composing = if (s is Spanned) {
+                    val spans = s.getSpans(0, s.length, Any::class.java)
+                    spans.any { (s.getSpanFlags(it) and Spanned.SPAN_COMPOSING) != 0 }
+                } else false
+                if (composing) {
+                    isComposing = true
+                    // 组合阶段每敲一个字母播一次普通敲击音（与英文逐键音效一致）
+                    playKeySound(true)
+                    try { hiddenInput.setSelection(hiddenInput.text.length) } catch (_: Exception) {}
+                    return
+                }
+                isComposing = false
                 handleInput(s?.toString() ?: "")
                 // 始终把隐藏输入框的光标拉回末尾，避免左/右移光标后按删除键删错字符
                 try { hiddenInput.setSelection(hiddenInput.text.length) } catch (_: Exception) {}
