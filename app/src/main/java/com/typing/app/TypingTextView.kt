@@ -22,6 +22,11 @@ class TypingTextView @JvmOverloads constructor(
         private const val EN_SIDE_PAD = 8f
     }
 
+    init {
+        // 必须显式启用长按，否则系统不会调度 performLongClick()，导致长按选词失效
+        isLongClickable = true
+    }
+
     private val colorCorrect = Color.parseColor("#40B43E")
     private val colorWrong = Color.parseColor("#E65C53")
     private val colorCurrent = Color.parseColor("#CC000000")
