@@ -95,7 +95,8 @@
                             android:text="@string/btn_add_content"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             app:strokeColor="@color/destructive"
-                            android:textColor="@color/destructive" />
+                            android:textColor="@color/destructive"
+                            android:layout_marginBottom="36dp" />
 
                         <Button
                             android:id="@+id/btn_wubi_special"

@@ -2145,7 +2145,12 @@ class MainActivity : AppCompatActivity() {
             pagePractice.visibility == View.VISIBLE -> {
                 stopTimer()
                 stopCursorBlink()
-                showPage("home")
+                if (isWubiPractice) {
+                    // 五笔关卡/自定义文章练习：返回对应列表界面
+                    showPage(practiceReturnPage)
+                } else {
+                    showPage("home")
+                }
             }
             pageContentList.visibility == View.VISIBLE -> showPage("home")
             pageContentEdit.visibility == View.VISIBLE -> {
@@ -2157,6 +2162,14 @@ class MainActivity : AppCompatActivity() {
                 renderContentList()
             }
             pageSettings.visibility == View.VISIBLE -> showPage("home")
+            // 五笔打字专项：逐级返回上一级界面
+            pageWubiSpecial.visibility == View.VISIBLE -> showPage("home")
+            pageWubiLevels.visibility == View.VISIBLE -> showPage("wubiSpecial")
+            pageCustomArticles.visibility == View.VISIBLE -> showPage("wubiSpecial")
+            pageCustomArticleEdit.visibility == View.VISIBLE -> {
+                showPage("customArticles")
+                renderCustomArticles()
+            }
             else -> super.onBackPressed()
         }
     }
