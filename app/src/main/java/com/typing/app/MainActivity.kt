@@ -179,6 +179,20 @@ class MainActivity : AppCompatActivity() {
     private lateinit var wubiLevelsContainer: LinearLayout
     private val wubiSingleLevels: MutableList<String> = mutableListOf()
     private val WUBI_SINGLE_LEVELS = 19
+    // 五笔关卡练习模式标记：控制练习页右上角按钮文案、底部"重新开始/返回首页"是否显示
+    private var isWubiPractice = false
+    // 练习页右上角"返回"要返回到的页面：wubiLevels 或 customArticles
+    private var practiceReturnPage = "wubiLevels"
+
+    // ===== 自定义文章 =====
+    private lateinit var pageCustomArticles: View
+    private lateinit var pageCustomArticleEdit: View
+    private lateinit var customArticlesContainer: LinearLayout
+    private lateinit var customArticleInputTitle: EditText
+    private lateinit var customArticleInputContent: EditText
+    private lateinit var customArticleEditTitle: TextView
+    private var customArticleEditId: String? = null
+    private var customArticleOpenLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -190,6 +204,15 @@ class MainActivity : AppCompatActivity() {
         ) { uri ->
             if (uri != null) {
                 writeWordbookToUri(uri, isExportingHanzi)
+            }
+        }
+
+        // 注册自定义文章导入文件选择
+        customArticleOpenLauncher = registerForActivityResult(
+            ActivityResultContracts.OpenDocument()
+        ) { uri ->
+            if (uri != null) {
+                importCustomArticleFromUri(uri)
             }
         }
 
@@ -324,6 +347,13 @@ class MainActivity : AppCompatActivity() {
         pageWubiSpecial = findViewById(R.id.page_wubi_special)
         pageWubiLevels = findViewById(R.id.page_wubi_levels)
         wubiLevelsContainer = findViewById(R.id.wubi_levels_container)
+
+        pageCustomArticles = findViewById(R.id.page_custom_articles)
+        pageCustomArticleEdit = findViewById(R.id.page_custom_article_edit)
+        customArticlesContainer = findViewById(R.id.custom_articles_container)
+        customArticleInputTitle = findViewById(R.id.custom_article_input_title)
+        customArticleInputContent = findViewById(R.id.custom_article_input_content)
+        customArticleEditTitle = findViewById(R.id.custom_article_edit_title)
     }
 
     private fun setupListeners() {
@@ -335,6 +365,7 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btn_normal_practice).setOnClickListener {
             practiceMode = "normal"
+            isWubiPractice = false
             if (!hasContents()) {
                 showModal(getString(R.string.title_cannot_empty), getString(R.string.msg_add_content_first))
                 return@setOnClickListener
@@ -345,6 +376,7 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btn_timed_practice).setOnClickListener {
             practiceMode = "timed"
+            isWubiPractice = false
             if (!hasContents()) {
                 showModal(getString(R.string.title_cannot_empty), getString(R.string.msg_add_content_first))
                 return@setOnClickListener
@@ -386,7 +418,30 @@ class MainActivity : AppCompatActivity() {
             showModal(getString(R.string.wubi_special_title), getString(R.string.wubi_coming_soon))
         }
         findViewById<Button>(R.id.btn_wubi_cat_custom).setOnClickListener {
-            showModal(getString(R.string.wubi_special_title), getString(R.string.wubi_coming_soon))
+            showPage("customArticles")
+            renderCustomArticles()
+            maybeShowCustomArticleTip()
+        }
+
+        // 五笔专项：自定义文章页面按钮
+        findViewById<Button>(R.id.btn_custom_articles_back).setOnClickListener {
+            showPage("wubiSpecial")
+        }
+        findViewById<Button>(R.id.btn_custom_article_import).setOnClickListener {
+            customArticleOpenLauncher?.launch(arrayOf("text/plain", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword", "application/pdf"))
+        }
+        findViewById<Button>(R.id.btn_custom_article_new).setOnClickListener {
+            openCustomArticleEdit(null)
+        }
+        findViewById<Button>(R.id.btn_custom_article_help).setOnClickListener {
+            showModal(getString(R.string.custom_article_help_title), getString(R.string.custom_article_help_body))
+        }
+        findViewById<Button>(R.id.btn_custom_article_edit_cancel).setOnClickListener {
+            showPage("customArticles")
+            renderCustomArticles()
+        }
+        findViewById<Button>(R.id.btn_custom_article_save).setOnClickListener {
+            saveCustomArticle()
         }
 
         // 五笔专项：关卡返回
@@ -396,9 +451,16 @@ class MainActivity : AppCompatActivity() {
 
         // Practice buttons
         findViewById<Button>(R.id.btn_select_content).setOnClickListener {
-            selectMode = true
-            showPage("contentList")
-            renderContentList()
+            if (isWubiPractice) {
+                // 五笔关卡/自定义文章练习：右上角为"返回"，返回对应列表界面
+                stopTimer()
+                stopCursorBlink()
+                showPage(practiceReturnPage)
+            } else {
+                selectMode = true
+                showPage("contentList")
+                renderContentList()
+            }
         }
 
         findViewById<Button>(R.id.btn_restart).setOnClickListener {
@@ -574,6 +636,8 @@ class MainActivity : AppCompatActivity() {
         pageSettings.visibility = View.GONE
         pageWubiSpecial.visibility = View.GONE
         pageWubiLevels.visibility = View.GONE
+        pageCustomArticles.visibility = View.GONE
+        pageCustomArticleEdit.visibility = View.GONE
 
         when (pageId) {
             "home" -> pageHome.visibility = View.VISIBLE
@@ -585,6 +649,8 @@ class MainActivity : AppCompatActivity() {
             "challenge" -> pageChallenge.visibility = View.VISIBLE
             "wubiSpecial" -> pageWubiSpecial.visibility = View.VISIBLE
             "wubiLevels" -> pageWubiLevels.visibility = View.VISIBLE
+            "customArticles" -> pageCustomArticles.visibility = View.VISIBLE
+            "customArticleEdit" -> pageCustomArticleEdit.visibility = View.VISIBLE
             "settings" -> {
                 pageSettings.visibility = View.VISIBLE
                 renderSettingsImportButtons()
@@ -991,6 +1057,20 @@ class MainActivity : AppCompatActivity() {
         // 蓝牙/物理键盘已连接：进入练习页自动聚焦，无需点屏幕即可直接打字
         if (hasHardKeyboard()) {
             hiddenInput.requestFocus()
+        }
+
+        // 五笔关卡练习模式：右上角按钮改为"返回"，隐藏底部"重新开始/返回首页"
+        val selectBtn = findViewById<Button>(R.id.btn_select_content)
+        val restartBtn = findViewById<Button>(R.id.btn_restart)
+        val backHomeBtn = findViewById<Button>(R.id.btn_back_home)
+        if (isWubiPractice) {
+            selectBtn.text = getString(R.string.btn_back)
+            restartBtn.visibility = View.GONE
+            backHomeBtn.visibility = View.GONE
+        } else {
+            selectBtn.text = getString(R.string.practice_select_content)
+            restartBtn.visibility = View.VISIBLE
+            backHomeBtn.visibility = View.VISIBLE
         }
     }
 
@@ -1399,12 +1479,248 @@ class MainActivity : AppCompatActivity() {
                 return obj
             }
         }
+        // 自定义文章内容
+        if (id.startsWith("custom_article_")) {
+            val arts = appData.optJSONArray("customArticles") ?: return null
+            for (i in 0 until arts.length()) {
+                val c = arts.getJSONObject(i)
+                if (c.getString("id") == id) return c
+            }
+        }
         val contents = appData.optJSONArray("contents") ?: return null
         for (i in 0 until contents.length()) {
             val c = contents.getJSONObject(i)
             if (c.getString("id") == id) return c
         }
         return null
+    }
+
+    // ===== 自定义文章 =====
+
+    private fun getCustomArticles(): JSONArray {
+        return appData.optJSONArray("customArticles") ?: JSONArray()
+    }
+
+    private fun renderCustomArticles() {
+        val arts = getCustomArticles()
+        customArticlesContainer.removeAllViews()
+        if (arts.length() == 0) {
+            val empty = TextView(this).apply {
+                text = getString(R.string.custom_articles_empty)
+                setTextColor(Color.parseColor("#999999"))
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setPadding(dp(24), dp(40), dp(24), dp(40))
+            }
+            customArticlesContainer.addView(empty)
+            return
+        }
+        for (i in 0 until arts.length()) {
+            val c = arts.getJSONObject(i)
+            val title = c.optString("title", "未命名")
+            val content = c.optString("content", "")
+            val layout = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(16), dp(14), dp(16), dp(14))
+            }
+            val titleTv = TextView(this).apply {
+                text = title
+                textSize = 15f
+                setTextColor(Color.parseColor("#CC000000"))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            val metaTv = TextView(this).apply {
+                text = "共${content.length}字"
+                textSize = 12f
+                setTextColor(Color.parseColor("#80000000"))
+                setPadding(dp(8), 0, dp(8), 0)
+            }
+            layout.addView(titleTv)
+            layout.addView(metaTv)
+            layout.setOnClickListener {
+                val targetId = c.optString("id")
+                selectCustomArticleForPractice(targetId)
+            }
+            layout.setOnLongClickListener {
+                val targetId = c.optString("id")
+                showCustomArticleActions(targetId, c.optString("title", ""))
+                true
+            }
+            val divider = View(this).apply {
+                setBackgroundColor(Color.parseColor("#14000000"))
+            }
+            customArticlesContainer.addView(layout)
+            customArticlesContainer.addView(divider, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1))
+        }
+    }
+
+    private fun selectCustomArticleForPractice(id: String) {
+        currentContentId = id
+        practiceMode = "normal"
+        isWubiPractice = true
+        practiceReturnPage = "customArticles"
+        showPage("practice")
+        initPractice()
+    }
+
+    private fun openCustomArticleEdit(id: String?) {
+        customArticleEditId = id
+        if (id == null) {
+            customArticleEditTitle.text = getString(R.string.custom_article_new)
+            customArticleInputTitle.setText("")
+            customArticleInputContent.setText("")
+        } else {
+            val c = getContent(id)
+            if (c == null) {
+                customArticleEditId = null
+                customArticleEditTitle.text = getString(R.string.custom_article_new)
+                customArticleInputTitle.setText("")
+                customArticleInputContent.setText("")
+                return
+            }
+            customArticleEditTitle.text = getString(R.string.custom_article_new)
+            customArticleInputTitle.setText(c.optString("title", ""))
+            customArticleInputContent.setText(c.optString("content", ""))
+        }
+        showPage("customArticleEdit")
+    }
+
+    private fun saveCustomArticle() {
+        val title = customArticleInputTitle.text.toString().trim()
+        val content = customArticleInputContent.text.toString().trim()
+        if (title.isEmpty() || content.isEmpty()) {
+            showModal(getString(R.string.title_cannot_empty), getString(R.string.msg_title_content_empty))
+            return
+        }
+        val arts = getCustomArticles()
+        val editId = customArticleEditId
+        if (editId != null) {
+            for (i in 0 until arts.length()) {
+                if (arts.getJSONObject(i).optString("id") == editId) {
+                    arts.getJSONObject(i).put("title", title)
+                    arts.getJSONObject(i).put("content", content)
+                    break
+                }
+            }
+        } else {
+            val obj = JSONObject()
+            obj.put("id", "custom_article_${System.currentTimeMillis()}_${(Math.random() * 10000).toInt().toString(36)}")
+            obj.put("title", title)
+            obj.put("content", content)
+            obj.put("createdAt", System.currentTimeMillis())
+            arts.put(obj)
+        }
+        appData.put("customArticles", arts)
+        saveData()
+        showPage("customArticles")
+        renderCustomArticles()
+        Toast.makeText(this, getString(R.string.custom_article_saved), Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showCustomArticleActions(id: String, title: String) {
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(arrayOf("编辑", "删除")) { _, which ->
+                when (which) {
+                    0 -> openCustomArticleEdit(id)
+                    1 -> deleteCustomArticle(id)
+                }
+            }
+            .show()
+    }
+
+    private fun deleteCustomArticle(id: String) {
+        AlertDialog.Builder(this)
+            .setMessage(getString(R.string.custom_article_delete_confirm))
+            .setPositiveButton("确定") { _, _ ->
+                val arts = getCustomArticles()
+                val newArts = JSONArray()
+                for (i in 0 until arts.length()) {
+                    val c = arts.getJSONObject(i)
+                    if (c.optString("id") != id) newArts.put(c)
+                }
+                appData.put("customArticles", newArts)
+                saveData()
+                renderCustomArticles()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun importCustomArticleFromUri(uri: Uri) {
+        try {
+            val mime = contentResolver.getType(uri)
+            val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            if (bytes == null || bytes.isEmpty()) {
+                Toast.makeText(this, getString(R.string.custom_article_read_fail), Toast.LENGTH_SHORT).show()
+                return
+            }
+            var text: String
+            if (mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || uri.toString().endsWith(".docx")) {
+                text = extractDocxText(bytes)
+            } else if (mime == "text/plain" || uri.toString().endsWith(".txt")) {
+                text = String(bytes, Charsets.UTF_8)
+            } else {
+                // 其他（pdf 等）先尝试按文本读取，失败则提示
+                text = String(bytes, Charsets.UTF_8)
+                if (text.isBlank()) {
+                    Toast.makeText(this, getString(R.string.custom_article_import_only_txt), Toast.LENGTH_SHORT).show()
+                    return
+                }
+            }
+            text = text.trim()
+            if (text.isEmpty()) {
+                Toast.makeText(this, getString(R.string.custom_article_read_fail), Toast.LENGTH_SHORT).show()
+                return
+            }
+            // 去空白分隔，便于打字练习
+            text = text.replace(Regex("\\s+"), "")
+            val title = "导入文章 ${System.currentTimeMillis() % 1000}"
+            val arts = getCustomArticles()
+            val obj = JSONObject()
+            obj.put("id", "custom_article_${System.currentTimeMillis()}_${(Math.random() * 10000).toInt().toString(36)}")
+            obj.put("title", title)
+            obj.put("content", text)
+            obj.put("createdAt", System.currentTimeMillis())
+            arts.put(obj)
+            appData.put("customArticles", arts)
+            saveData()
+            showPage("customArticles")
+            renderCustomArticles()
+            Toast.makeText(this, getString(R.string.custom_article_saved), Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, getString(R.string.custom_article_read_fail), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun extractDocxText(bytes: ByteArray): String {
+        try {
+            val zip = java.util.zip.ZipInputStream(bytes.inputStream())
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (entry.name == "word/document.xml") {
+                    val xml = zip.readBytes().toString(Charsets.UTF_8)
+                    // 提取 <w:t> 文本节点
+                    val sb = StringBuilder()
+                    val re = Regex("<w:t[^>]*>([^<]*)</w:t>")
+                    for (m in re.findAll(xml)) sb.append(m.groupValues[1])
+                    return sb.toString()
+                }
+                entry = zip.nextEntry
+            }
+            return ""
+        } catch (e: Exception) {
+            return ""
+        }
+    }
+
+    private fun maybeShowCustomArticleTip() {
+        val prefs = getSharedPreferences("typing_app_data", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("custom_article_tip_shown", false)) return
+        prefs.edit().putBoolean("custom_article_tip_shown", true).apply()
+        showModal(getString(R.string.custom_article_tip_title), getString(R.string.custom_article_tip_body))
     }
 
     private fun ensureWubiSingleLevelsLoaded() {
@@ -1453,6 +1769,8 @@ class MainActivity : AppCompatActivity() {
         if (level < 1 || level > wubiSingleLevels.size) return
         currentContentId = "wubi_single_$level"
         practiceMode = "normal"
+        isWubiPractice = true
+        practiceReturnPage = "wubiLevels"
         showPage("practice")
         initPractice()
     }
@@ -1577,6 +1895,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun selectContentForPractice(id: String) {
         currentContentId = id
+        isWubiPractice = false
         showPage("practice")
         initPractice()
     }
@@ -1735,6 +2054,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startChallenge() {
         practiceMode = "timed"
+        isWubiPractice = false
         val contents = appData.optJSONArray("contents")
         if (contents == null || contents.length() == 0) {
             showModal(getString(R.string.title_cannot_empty), getString(R.string.msg_add_content_first))
