@@ -67,6 +67,19 @@
     <string name="rank_next_fmt">距%d分升至下一段位</string>
     <string name="rank_max">已达最高段位！</string>
 
+    <!-- 五笔打字专项 -->
+    <string name="btn_wubi_special">五笔打字专项</string>
+    <string name="wubi_special_title">五笔打字专项</string>
+    <string name="wubi_category_single">单字</string>
+    <string name="wubi_category_phrase">词组</string>
+    <string name="wubi_category_idiom">成语</string>
+    <string name="wubi_category_custom">自定义文章</string>
+    <string name="wubi_levels_title">选择关卡</string>
+    <string name="wubi_level_format">第 %d 关</string>
+    <string name="wubi_level_desc">每关 450 字 · 五笔打字专项</string>
+    <string name="btn_back">返回</string>
+    <string name="wubi_coming_soon">该分类暂未开放，敬请期待</string>
+
     <!-- 设置页 -->
     <string name="btn_settings">设置</string>
     <string name="settings_title">设置</string>
