@@ -173,6 +173,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var navHome: View
     private lateinit var navRecords: View
 
+    // 五笔打字专项
+    private lateinit var pageWubiSpecial: View
+    private lateinit var pageWubiLevels: View
+    private lateinit var wubiLevelsContainer: LinearLayout
+    private val wubiSingleLevels: MutableList<String> = mutableListOf()
+    private val WUBI_SINGLE_LEVELS = 19
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -313,6 +320,10 @@ class MainActivity : AppCompatActivity() {
         navChallenge = findViewById(R.id.nav_challenge)
         navHome = findViewById(R.id.nav_home)
         navRecords = findViewById(R.id.nav_records)
+
+        pageWubiSpecial = findViewById(R.id.page_wubi_special)
+        pageWubiLevels = findViewById(R.id.page_wubi_levels)
+        wubiLevelsContainer = findViewById(R.id.wubi_levels_container)
     }
 
     private fun setupListeners() {
@@ -346,6 +357,41 @@ class MainActivity : AppCompatActivity() {
             selectMode = false
             showPage("contentList")
             renderContentList()
+        }
+
+        // 五笔打字专项入口
+        findViewById<Button>(R.id.btn_wubi_special).setOnClickListener {
+            showPage("wubiSpecial")
+        }
+
+        // 五笔专项：返回首页
+        findViewById<Button>(R.id.btn_wubi_back_home).setOnClickListener {
+            stopTimer()
+            stopCursorBlink()
+            showPage("home")
+        }
+
+        // 五笔专项：分类 -> 单字
+        findViewById<Button>(R.id.btn_wubi_cat_single).setOnClickListener {
+            ensureWubiSingleLevelsLoaded()
+            showPage("wubiLevels")
+            renderWubiLevels()
+        }
+
+        // 五笔专项：分类 -> 词组 / 成语 / 自定义文章（占位提示）
+        findViewById<Button>(R.id.btn_wubi_cat_phrase).setOnClickListener {
+            showModal(getString(R.string.wubi_special_title), getString(R.string.wubi_coming_soon))
+        }
+        findViewById<Button>(R.id.btn_wubi_cat_idiom).setOnClickListener {
+            showModal(getString(R.string.wubi_special_title), getString(R.string.wubi_coming_soon))
+        }
+        findViewById<Button>(R.id.btn_wubi_cat_custom).setOnClickListener {
+            showModal(getString(R.string.wubi_special_title), getString(R.string.wubi_coming_soon))
+        }
+
+        // 五笔专项：关卡返回
+        findViewById<Button>(R.id.btn_wubi_levels_back).setOnClickListener {
+            showPage("wubiSpecial")
         }
 
         // Practice buttons
@@ -526,6 +572,8 @@ class MainActivity : AppCompatActivity() {
         pageRecords.visibility = View.GONE
         pageChallenge.visibility = View.GONE
         pageSettings.visibility = View.GONE
+        pageWubiSpecial.visibility = View.GONE
+        pageWubiLevels.visibility = View.GONE
 
         when (pageId) {
             "home" -> pageHome.visibility = View.VISIBLE
@@ -535,6 +583,8 @@ class MainActivity : AppCompatActivity() {
             "contentDetail" -> pageContentDetail.visibility = View.VISIBLE
             "records" -> pageRecords.visibility = View.VISIBLE
             "challenge" -> pageChallenge.visibility = View.VISIBLE
+            "wubiSpecial" -> pageWubiSpecial.visibility = View.VISIBLE
+            "wubiLevels" -> pageWubiLevels.visibility = View.VISIBLE
             "settings" -> {
                 pageSettings.visibility = View.VISIBLE
                 renderSettingsImportButtons()
@@ -1337,12 +1387,78 @@ class MainActivity : AppCompatActivity() {
     // ===== Content Management =====
 
     private fun getContent(id: String): JSONObject? {
+        // 五笔打字专项关卡内容：无需进入 contents 列表，直接按 id 生成
+        if (id.startsWith("wubi_single_")) {
+            val level = id.removePrefix("wubi_single_").toIntOrNull() ?: return null
+            if (level in 1..WUBI_SINGLE_LEVELS) {
+                val text = wubiSingleLevels.getOrNull(level - 1) ?: return null
+                val obj = JSONObject()
+                obj.put("id", id)
+                obj.put("title", "五笔单字·第${level}关")
+                obj.put("content", text)
+                return obj
+            }
+        }
         val contents = appData.optJSONArray("contents") ?: return null
         for (i in 0 until contents.length()) {
             val c = contents.getJSONObject(i)
             if (c.getString("id") == id) return c
         }
         return null
+    }
+
+    private fun ensureWubiSingleLevelsLoaded() {
+        if (wubiSingleLevels.isNotEmpty()) return
+        try {
+            assets.open("wubi_single.txt").bufferedReader().useLines { lines ->
+                wubiSingleLevels.clear()
+                lines.forEach { line ->
+                    if (line.isNotBlank()) wubiSingleLevels.add(line)
+                }
+            }
+        } catch (e: Exception) {
+            wubiSingleLevels.clear()
+            e.printStackTrace()
+        }
+    }
+
+    private fun renderWubiLevels() {
+        ensureWubiSingleLevelsLoaded()
+        wubiLevelsContainer.removeAllViews()
+        val levels = wubiSingleLevels.size
+        for (i in 0 until levels) {
+            val level = i + 1
+            val btn = Button(this)
+            btn.text = getString(R.string.wubi_level_format, level)
+            btn.textSize = 16f
+            btn.setAllCaps(false)
+            btn.isAllCaps = false
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            lp.setMargins(0, dp(6), 0, dp(6))
+            btn.layoutParams = lp
+            btn.setBackgroundResource(R.drawable.bg_level_button)
+            btn.setTextColor(Color.parseColor("#E65C53"))
+            btn.setOnClickListener {
+                startWubiSinglePractice(level)
+            }
+            wubiLevelsContainer.addView(btn)
+        }
+    }
+
+    private fun startWubiSinglePractice(level: Int) {
+        ensureWubiSingleLevelsLoaded()
+        if (level < 1 || level > wubiSingleLevels.size) return
+        currentContentId = "wubi_single_$level"
+        practiceMode = "normal"
+        showPage("practice")
+        initPractice()
+    }
+
+    private fun dp(value: Int): Int {
+        return (value * resources.displayMetrics.density).toInt()
     }
 
     private fun getContentIndex(id: String): Int {
