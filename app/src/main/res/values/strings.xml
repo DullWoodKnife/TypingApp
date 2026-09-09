@@ -83,7 +83,7 @@
     <string name="custom_articles_title">自定义文章</string>
     <string name="custom_article_import">导入</string>
     <string name="custom_article_new">新建</string>
-    <string name="custom_article_help">?帮助</string>
+    <string name="custom_article_help">\?帮助</string>
     <string name="custom_article_save">保存</string>
     <string name="custom_articles_empty">暂无自定义文章，点击上方"导入"或"新建"添加</string>
     <string name="custom_article_help_title">使用说明</string>
