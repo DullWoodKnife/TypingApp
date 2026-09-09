@@ -76,6 +76,7 @@
     <string name="wubi_category_custom">自定义文章</string>
     <string name="wubi_levels_title">选择关卡</string>
     <string name="wubi_level_format">第 %d 关</string>
+    <string name="wubi_level_done_format">第 %1$d 关（已完成 %2$d 次）</string>
     <string name="wubi_level_desc">每关 450 字 · 五笔打字专项</string>
     <string name="wubi_coming_soon">该分类暂未开放，敬请期待</string>
 

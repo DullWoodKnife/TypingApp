@@ -1190,6 +1190,12 @@ class MainActivity : AppCompatActivity() {
             val acc = if (stats[0] + stats[1] > 0) Math.round(stats[0].toFloat() / (stats[0] + stats[1]) * 100) else 0
             saveRecord(stats[0], acc, speed)
 
+            // 五笔单字关卡：完成一次则累加该关卡完成次数
+            if (isWubiPractice && practiceReturnPage == "wubiLevels") {
+                val level = currentContentId.removePrefix("wubi_single_").toIntOrNull()
+                if (level != null) incrementWubiLevelDone(level)
+            }
+
             showModal(
                 getString(R.string.modal_complete),
                 "速度：$speed 字/分\n正确率：$acc%\n正确：${stats[0]} 字\n错误：${stats[1]} 字\n用时：$secs 秒"
@@ -1745,7 +1751,8 @@ class MainActivity : AppCompatActivity() {
         for (i in 0 until levels) {
             val level = i + 1
             val btn = Button(this)
-            btn.text = getString(R.string.wubi_level_format, level)
+            val doneCount = getWubiLevelDone(level)
+            btn.text = getString(R.string.wubi_level_done_format, level, doneCount)
             btn.textSize = 16f
             btn.setAllCaps(false)
             btn.isAllCaps = false
@@ -1773,6 +1780,15 @@ class MainActivity : AppCompatActivity() {
         practiceReturnPage = "wubiLevels"
         showPage("practice")
         initPractice()
+    }
+
+    // ===== 五笔单字关卡完成次数 =====
+    private fun wubiDonePrefs() = getSharedPreferences("typing_app_data", Context.MODE_PRIVATE)
+    private fun getWubiLevelDone(level: Int): Int {
+        return wubiDonePrefs().getInt("wubi_level_done_$level", 0)
+    }
+    private fun incrementWubiLevelDone(level: Int) {
+        wubiDonePrefs().edit().putInt("wubi_level_done_$level", getWubiLevelDone(level) + 1).apply()
     }
 
     private fun dp(value: Int): Int {
