@@ -79,6 +79,23 @@
     <string name="wubi_level_desc">每关 450 字 · 五笔打字专项</string>
     <string name="wubi_coming_soon">该分类暂未开放，敬请期待</string>
 
+    <!-- 自定义文章 -->
+    <string name="custom_articles_title">自定义文章</string>
+    <string name="custom_article_import">导入</string>
+    <string name="custom_article_new">新建</string>
+    <string name="custom_article_help">?帮助</string>
+    <string name="custom_article_save">保存</string>
+    <string name="custom_articles_empty">暂无自定义文章，点击上方"导入"或"新建"添加</string>
+    <string name="custom_article_help_title">使用说明</string>
+    <string name="custom_article_help_body">1、点击"导入"可导入 Word(.docx)、PDF、txt 文件中的文字内容\n2、点击"新建"粘贴或输入文字内容，作为练习文章\n3、成功添加的文章会出现在下方列表中\n4、点击文章即可进入五笔打字练习，长按文章可编辑或删除</string>
+    <string name="custom_article_tip_title">欢迎使用自定义文章</string>
+    <string name="custom_article_tip_body">你可以导入 Word/PDF/txt 文件，或新建文章，作为五笔打字练习的内容。</string>
+    <string name="custom_article_import_hint">请选择 txt 或 docx 文件</string>
+    <string name="custom_article_import_only_txt">当前仅支持 txt/docx 文件导入</string>
+    <string name="custom_article_saved">已保存</string>
+    <string name="custom_article_delete_confirm">确定要删除此文章吗？</string>
+    <string name="custom_article_read_fail">文件读取失败</string>
+
     <!-- 设置页 -->
     <string name="btn_settings">设置</string>
     <string name="settings_title">设置</string>
