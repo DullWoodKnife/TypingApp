@@ -1696,7 +1696,7 @@ class MainActivity : AppCompatActivity() {
                 // 清理空白：仅合并连续空白为单个空格，保留单词间分隔
                 text = text.replace(Regex("\\s+"), " ").trim()
                 // 移除不可见控制字符（0x00-0x08、0x0B-0x0C、0x0E-0x1F、0x7F）
-                text = text.replace(Regex("[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]"), "")
+                text = text.filter { it.code !in 0x00..0x08 && it.code !in 0x0B..0x0C && it.code !in 0x0E..0x1F && it.code != 0x7F }
 
                 val title = queryFileName(uri).ifBlank { "导入文章" }
                 val arts = getCustomArticles()
