@@ -508,6 +508,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
         typingTextView.onSelectionDismissed = {
+            // 取消长按选中时，同时关闭查词弹窗；未完成练习则回到输入框
+            dismissWordLookupPopup()
             if (!isFinished) focusInput()
         }
 
@@ -638,6 +640,12 @@ class MainActivity : AppCompatActivity() {
         pageWubiLevels.visibility = View.GONE
         pageCustomArticles.visibility = View.GONE
         pageCustomArticleEdit.visibility = View.GONE
+
+        // 离开练习页时，清除长按选中高亮并关闭查词弹窗，避免状态残留到其它页面/文章
+        if (pageId != "practice") {
+            typingTextView.clearSelection()
+            dismissWordLookupPopup()
+        }
 
         when (pageId) {
             "home" -> pageHome.visibility = View.VISIBLE
@@ -950,6 +958,12 @@ class MainActivity : AppCompatActivity() {
             wordInfoPopup = null
         }
         wordInfoPopup = pw
+    }
+
+    // 关闭查词/添加到生词本弹窗
+    private fun dismissWordLookupPopup() {
+        wordInfoPopup?.dismiss()
+        wordInfoPopup = null
     }
 
     private fun isClickOnView(v: View, rawX: Int, rawY: Int): Boolean {

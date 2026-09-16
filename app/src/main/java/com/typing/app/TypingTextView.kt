@@ -119,6 +119,8 @@ class TypingTextView @JvmOverloads constructor(
         userInput = input
         cursorVisible = showCursor
         isEnglishContent = detectEnglishContent(original)
+        // 内容切换时清除长按选中状态，避免高亮残留到其它文章
+        clearSelectionInternal()
         needsLayout = true
         invalidate()
         requestLayout()
@@ -335,6 +337,9 @@ class TypingTextView @JvmOverloads constructor(
                         draggingHandle = 2
                         parent?.requestDisallowInterceptTouchEvent(true)
                         return true
+                    } else {
+                        // 点击选中区域以外的地方 → 取消选中
+                        clearSelection()
                     }
                 }
             }
@@ -376,6 +381,21 @@ class TypingTextView @JvmOverloads constructor(
     }
 
     private fun n_(): Int = originalText.length
+
+    // 清除长按选中状态（高亮+手柄），并通知宿主
+    fun clearSelection() {
+        if (selStart == -1 && selEnd == -1) return
+        clearSelectionInternal()
+        invalidate()
+        onSelectionDismissed?.invoke()
+    }
+
+    // 静默清除选中状态（不回调），供内容切换等内部场景使用
+    private fun clearSelectionInternal() {
+        selStart = -1
+        selEnd = -1
+        draggingHandle = 0
+    }
 
     private fun dist(x1: Float, y1: Float, x2: Float, y2: Float): Float {
         val dx = x1 - x2; val dy = y1 - y2
