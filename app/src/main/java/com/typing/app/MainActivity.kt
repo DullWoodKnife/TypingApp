@@ -1662,13 +1662,18 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, getString(R.string.custom_article_read_fail), Toast.LENGTH_SHORT).show()
                 return
             }
+            // 拒绝 PDF（文件头 %PDF 或 MIME type application/pdf）
+            if (mime == "application/pdf" || (bytes.size >= 4 && bytes[0] == 0x25.toByte() && bytes[1] == 0x50.toByte() && bytes[2] == 0x44.toByte() && bytes[3] == 0x46.toByte())) {
+                Toast.makeText(this, "暂不支持导入 PDF 文件，请转换为 TXT 或 DOCX 格式后再导入。", Toast.LENGTH_LONG).show()
+                return
+            }
             var text: String
             if (mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || uri.toString().endsWith(".docx")) {
                 text = extractDocxText(bytes)
             } else if (mime == "text/plain" || uri.toString().endsWith(".txt")) {
                 text = String(bytes, Charsets.UTF_8)
             } else {
-                // 其他（pdf 等）先尝试按文本读取，失败则提示
+                // 其他未知格式尝试按 UTF-8 文本读取
                 text = String(bytes, Charsets.UTF_8)
                 if (text.isBlank()) {
                     Toast.makeText(this, getString(R.string.custom_article_import_only_txt), Toast.LENGTH_SHORT).show()
@@ -1682,7 +1687,7 @@ class MainActivity : AppCompatActivity() {
             }
             // 去空白分隔，便于打字练习
             text = text.replace(Regex("\\s+"), "")
-            val title = "导入文章 ${System.currentTimeMillis() % 1000}"
+            val title = queryFileName(uri)
             val arts = getCustomArticles()
             val obj = JSONObject()
             obj.put("id", "custom_article_${System.currentTimeMillis()}_${(Math.random() * 10000).toInt().toString(36)}")
