@@ -1655,54 +1655,71 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun importCustomArticleFromUri(uri: Uri) {
-        try {
-            val mime = contentResolver.getType(uri)
-            val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            if (bytes == null || bytes.isEmpty()) {
-                Toast.makeText(this, getString(R.string.custom_article_read_fail), Toast.LENGTH_SHORT).show()
-                return
-            }
-            // 拒绝 PDF（文件头 %PDF 或 MIME type application/pdf）
-            if (mime == "application/pdf" || (bytes.size >= 4 && bytes[0] == 0x25.toByte() && bytes[1] == 0x50.toByte() && bytes[2] == 0x44.toByte() && bytes[3] == 0x46.toByte())) {
-                Toast.makeText(this, "暂不支持导入 PDF 文件，请转换为 TXT 或 DOCX 格式后再导入。", Toast.LENGTH_LONG).show()
-                return
-            }
-            var text: String
-            if (mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || uri.toString().endsWith(".docx")) {
-                text = extractDocxText(bytes)
-            } else if (mime == "text/plain" || uri.toString().endsWith(".txt")) {
-                text = String(bytes, Charsets.UTF_8)
-            } else {
-                // 其他未知格式尝试按 UTF-8 文本读取
-                text = String(bytes, Charsets.UTF_8)
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val mime = contentResolver.getType(uri)
+                val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (bytes == null || bytes.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, getString(R.string.custom_article_read_fail), Toast.LENGTH_SHORT).show()
+                    }
+                    return@launch
+                }
+                // 文件大小限制 5MB，避免超大文件导致 OOM
+                if (bytes.size > 5 * 1024 * 1024) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "文件过大，请选择小于 5MB 的文件", Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+
+                var text: String = ""
+                val isPdf = mime == "application/pdf" ||
+                        (bytes.size >= 4 && bytes[0] == 0x25.toByte() && bytes[1] == 0x50.toByte() && bytes[2] == 0x44.toByte() && bytes[3] == 0x46.toByte())
+
+                text = if (isPdf) {
+                    extractPdfText(bytes)
+                } else if (mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || uri.toString().endsWith(".docx")) {
+                    extractDocxText(bytes)
+                } else {
+                    decodeWithFallback(bytes)
+                }
+
                 if (text.isBlank()) {
-                    Toast.makeText(this, getString(R.string.custom_article_import_only_txt), Toast.LENGTH_SHORT).show()
-                    return
+                    withContext(Dispatchers.Main) {
+                        val msg = if (isPdf) "PDF 文件内容不支持导入（可能是纯图片或扫描件）" else getString(R.string.custom_article_read_fail)
+                        Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+
+                // 清理空白：仅合并连续空白为单个空格，保留单词间分隔
+                text = text.replace(Regex("\\s+"), " ").trim()
+                // 移除不可见控制字符（0x00-0x08、0x0B-0x0C、0x0E-0x1F、0x7F）
+                text = text.replace(Regex("[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]"), "")
+
+                val title = queryFileName(uri).ifBlank { "导入文章" }
+                val arts = getCustomArticles()
+                val obj = JSONObject()
+                obj.put("id", "custom_article_${System.currentTimeMillis()}_${(Math.random() * 10000).toInt().toString(36)}")
+                obj.put("title", title)
+                obj.put("content", text)
+                obj.put("createdAt", System.currentTimeMillis())
+                arts.put(obj)
+                appData.put("customArticles", arts)
+                saveData()
+
+                withContext(Dispatchers.Main) {
+                    showPage("customArticles")
+                    renderCustomArticles()
+                    Toast.makeText(this@MainActivity, getString(R.string.custom_article_saved), Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, getString(R.string.custom_article_read_fail), Toast.LENGTH_SHORT).show()
                 }
             }
-            text = text.trim()
-            if (text.isEmpty()) {
-                Toast.makeText(this, getString(R.string.custom_article_read_fail), Toast.LENGTH_SHORT).show()
-                return
-            }
-            // 去空白分隔，便于打字练习
-            text = text.replace(Regex("\\s+"), "")
-            val title = queryFileName(uri)
-            val arts = getCustomArticles()
-            val obj = JSONObject()
-            obj.put("id", "custom_article_${System.currentTimeMillis()}_${(Math.random() * 10000).toInt().toString(36)}")
-            obj.put("title", title)
-            obj.put("content", text)
-            obj.put("createdAt", System.currentTimeMillis())
-            arts.put(obj)
-            appData.put("customArticles", arts)
-            saveData()
-            showPage("customArticles")
-            renderCustomArticles()
-            Toast.makeText(this, getString(R.string.custom_article_saved), Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(this, getString(R.string.custom_article_read_fail), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1725,6 +1742,97 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             return ""
         }
+    }
+
+    // 从 PDF 字节中提取文本内容。先尝试通过流解析 xref / stream 中的 text operators (TJ/Tj)。
+    // 若未提取到任何文本，则视为图片/扫描件 PDF，返回空字符串让上层提示用户。
+    private fun extractPdfText(bytes: ByteArray): String {
+        try {
+            val content = String(bytes, Charsets.ISO_8859_1)
+            val sb = StringBuilder()
+            // 匹配 text-showing operators：Tj (string) 和 TJ [array]
+            val tjRe = Regex("\\(([^\\)]{1,4000})\\)\\s*Tj")
+            val tJRe = Regex("\\[([^\\]]{1,4000})\\]\\s*TJ")
+            for (m in tjRe.findAll(content)) {
+                sb.append(unescapePdfString(m.groupValues[1]))
+            }
+            for (m in tJRe.findAll(content)) {
+                val arr = m.groupValues[1]
+                // TJ 数组里每个 (string) 是文本片段，数字是字距调整
+                val partRe = Regex("\\(([^\\)]{1,4000})\\)")
+                for (pm in partRe.findAll(arr)) {
+                    sb.append(unescapePdfString(pm.groupValues[1]))
+                }
+            }
+            // 部分 PDF 用 <...> 十六进制字符串表示文本
+            val hexRe = Regex("<([0-9A-Fa-f]{2,4000})>\\s*Tj")
+            for (m in hexRe.findAll(content)) {
+                val hex = m.groupValues[1]
+                try {
+                    for (i in 0 until hex.length step 2) {
+                        val b = hex.substring(i, i + 2).toInt(16)
+                        sb.append(b.toChar())
+                    }
+                } catch (_: Exception) { }
+            }
+            return sb.toString()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return ""
+        }
+    }
+
+    // 处理 PDF 字符串转义：\\n -> 换行, \\r -> 回车, \\t -> 制表, \\\\ -> 反斜杠, \\( -> (, \\) -> )
+    private fun unescapePdfString(s: String): String {
+        val sb = StringBuilder(s.length)
+        var i = 0
+        while (i < s.length) {
+            val c = s[i]
+            if (c == '\\' && i + 1 < s.length) {
+                when (s[i + 1]) {
+                    'n' -> { sb.append('\n'); i += 2; continue }
+                    'r' -> { sb.append('\r'); i += 2; continue }
+                    't' -> { sb.append('\t'); i += 2; continue }
+                    'b' -> { sb.append('\b'); i += 2; continue }
+                    'f' -> { sb.append('\u000C'); i += 2; continue }
+                    '\\' -> { sb.append('\\'); i += 2; continue }
+                    '(' -> { sb.append('('); i += 2; continue }
+                    ')' -> { sb.append(')'); i += 2; continue }
+                    else -> { sb.append(s[i + 1]); i += 2; continue }
+                }
+            }
+            sb.append(c)
+            i++
+        }
+        return sb.toString()
+    }
+
+    // 按 UTF-8 -> UTF-8 with BOM -> GB18030 -> GBK -> GB2312 -> ISO-8859-1 顺序尝试解码
+    private fun decodeWithFallback(bytes: ByteArray): String {
+        // 先检测 BOM
+        if (bytes.size >= 3 && bytes[0] == 0xEF.toByte() && bytes[1] == 0xBB.toByte() && bytes[2] == 0xBF.toByte()) {
+            return String(bytes, 3, bytes.size - 3, Charsets.UTF_8)
+        }
+        val candidates = listOf(Charsets.UTF_8, Charsets.UTF_16, Charsets.UTF_16BE, Charsets.UTF_16LE,
+            java.nio.charset.Charset.forName("GB18030"),
+            java.nio.charset.Charset.forName("GBK"),
+            java.nio.charset.Charset.forName("GB2312"),
+            java.nio.charset.Charset.forName("Big5"),
+            Charsets.ISO_8859_1)
+        for (charset in candidates) {
+            try {
+                val decoded = String(bytes, charset)
+                // 简单校验：解码后如果全是替换符则跳过
+                if (decoded.contains('\uFFFD')) continue
+                // 若 UTF-16/LE/BE 解码后字节数异常小，说明可能误判
+                if ((charset == Charsets.UTF_16 || charset == Charsets.UTF_16LE || charset == Charsets.UTF_16BE)
+                    && decoded.length < bytes.size / 4) continue
+                return decoded
+            } catch (_: Exception) {
+                continue
+            }
+        }
+        return String(bytes, Charsets.UTF_8)
     }
 
     private fun maybeShowCustomArticleTip() {
