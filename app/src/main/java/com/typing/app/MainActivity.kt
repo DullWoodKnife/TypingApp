@@ -177,8 +177,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pageWubiSpecial: View
     private lateinit var pageWubiLevels: View
     private lateinit var wubiLevelsContainer: LinearLayout
+    private lateinit var wubiLevelsTitle: TextView
+    private lateinit var wubiLevelsDesc: TextView
     private val wubiSingleLevels: MutableList<String> = mutableListOf()
+    private val wubiXiehouyuLevels: MutableList<String> = mutableListOf()
+    private val wubiChengyuLevels: MutableList<String> = mutableListOf()
+    private var chengyuDict: HashMap<String, JSONObject>? = null
     private val WUBI_SINGLE_LEVELS = 19
+    private val XIEHOUYU_LEVELS = 50
+    private val CHENGYU_LEVELS = 50
+    private var wubiCategory = "single" // "single" | "xiehouyu" | "chengyu"
     // 五笔关卡练习模式标记：控制练习页右上角按钮文案、底部"重新开始/返回首页"是否显示
     private var isWubiPractice = false
     // 练习页右上角"返回"要返回到的页面：wubiLevels 或 customArticles
@@ -347,6 +355,8 @@ class MainActivity : AppCompatActivity() {
         pageWubiSpecial = findViewById(R.id.page_wubi_special)
         pageWubiLevels = findViewById(R.id.page_wubi_levels)
         wubiLevelsContainer = findViewById(R.id.wubi_levels_container)
+        wubiLevelsTitle = findViewById(R.id.wubi_levels_title)
+        wubiLevelsDesc = findViewById(R.id.wubi_levels_desc)
 
         pageCustomArticles = findViewById(R.id.page_custom_articles)
         pageCustomArticleEdit = findViewById(R.id.page_custom_article_edit)
@@ -406,6 +416,7 @@ class MainActivity : AppCompatActivity() {
         // 五笔专项：分类 -> 单字
         findViewById<Button>(R.id.btn_wubi_cat_single).setOnClickListener {
             ensureWubiSingleLevelsLoaded()
+            wubiCategory = "single"
             showPage("wubiLevels")
             renderWubiLevels()
         }
@@ -415,7 +426,16 @@ class MainActivity : AppCompatActivity() {
             showModal(getString(R.string.wubi_special_title), getString(R.string.wubi_coming_soon))
         }
         findViewById<Button>(R.id.btn_wubi_cat_idiom).setOnClickListener {
-            showModal(getString(R.string.wubi_special_title), getString(R.string.wubi_coming_soon))
+            ensureChengyuLevelsLoaded()
+            wubiCategory = "chengyu"
+            showPage("wubiLevels")
+            renderWubiLevels()
+        }
+        findViewById<Button>(R.id.btn_wubi_cat_xiehouyu).setOnClickListener {
+            ensureXiehouyuLevelsLoaded()
+            wubiCategory = "xiehouyu"
+            showPage("wubiLevels")
+            renderWubiLevels()
         }
         findViewById<Button>(R.id.btn_wubi_cat_custom).setOnClickListener {
             showPage("customArticles")
@@ -844,13 +864,52 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // 更新五笔码 + 拼音/音标释义区。**只自动显示五笔码**；拼音/音标释义由用户长按打字区触发填充。
+    // 更新五笔码 + 拼音/音标释义区。成语关卡自动显示光标所在成语的拼音和释义。
     private fun updateHints(text: String) {
         if (isFinished || text.isEmpty()) {
             wubiHint.text = ""
+            dictHint.text = ""
             return
         }
         updateWubiHint(text)
+        // 成语关卡：自动显示光标所在成语的拼音和释义
+        if (currentContentId.startsWith("wubi_chengyu_")) {
+            updateChengyuHint(text)
+        }
+    }
+
+    // 成语练习：根据光标位置找到当前成语，在 dictHint 显示拼音和释义
+    private fun updateChengyuHint(text: String) {
+        val idx = userInput.length.coerceAtMost(text.length - 1)
+        if (idx < 0) {
+            dictHint.text = ""
+            return
+        }
+        // 向前找空格或开头，向后找空格或结尾，确定当前成语范围
+        var start = idx
+        while (start > 0 && text[start - 1] != ' ') start--
+        var end = idx
+        while (end < text.length && text[end] != ' ') end++
+        val chengyu = text.substring(start, end)
+        if (chengyu.isBlank() || chengyu.length < 2) {
+            dictHint.text = ""
+            return
+        }
+        val dict = chengyuDict ?: loadChengyuDict().also { chengyuDict = it }
+        val entry = dict[chengyu]
+        if (entry != null) {
+            val pinyin = entry.optString("pinyin", "")
+            val meaning = entry.optString("meaning", "")
+            dictHint.text = if (pinyin.isNotBlank() && meaning.isNotBlank()) {
+                "[$pinyin] $meaning"
+            } else if (pinyin.isNotBlank()) {
+                "[$pinyin]"
+            } else if (meaning.isNotBlank()) {
+                meaning
+            } else ""
+        } else {
+            dictHint.text = ""
+        }
     }
 
     private fun isHanziChar(ch: Char): Boolean {
@@ -1190,10 +1249,22 @@ class MainActivity : AppCompatActivity() {
             val acc = if (stats[0] + stats[1] > 0) Math.round(stats[0].toFloat() / (stats[0] + stats[1]) * 100) else 0
             saveRecord(stats[0], acc, speed)
 
-            // 五笔单字关卡：完成一次则累加该关卡完成次数
+            // 五笔关卡：完成一次则累加该关卡完成次数
             if (isWubiPractice && practiceReturnPage == "wubiLevels") {
-                val level = currentContentId.removePrefix("wubi_single_").toIntOrNull()
-                if (level != null) incrementWubiLevelDone(level)
+                when {
+                    currentContentId.startsWith("wubi_single_") -> {
+                        val level = currentContentId.removePrefix("wubi_single_").toIntOrNull()
+                        if (level != null) incrementWubiLevelDone("wubi_single_done", level)
+                    }
+                    currentContentId.startsWith("wubi_xiehouyu_") -> {
+                        val level = currentContentId.removePrefix("wubi_xiehouyu_").toIntOrNull()
+                        if (level != null) incrementWubiLevelDone("wubi_xiehouyu_done", level)
+                    }
+                    currentContentId.startsWith("wubi_chengyu_") -> {
+                        val level = currentContentId.removePrefix("wubi_chengyu_").toIntOrNull()
+                        if (level != null) incrementWubiLevelDone("wubi_chengyu_done", level)
+                    }
+                }
             }
 
             showModal(
@@ -1481,6 +1552,30 @@ class MainActivity : AppCompatActivity() {
                 val obj = JSONObject()
                 obj.put("id", id)
                 obj.put("title", "五笔单字·第${level}关")
+                obj.put("content", text)
+                return obj
+            }
+        }
+        if (id.startsWith("wubi_xiehouyu_")) {
+            val level = id.removePrefix("wubi_xiehouyu_").toIntOrNull() ?: return null
+            ensureXiehouyuLevelsLoaded()
+            if (level in 1..wubiXiehouyuLevels.size) {
+                val text = wubiXiehouyuLevels.getOrNull(level - 1) ?: return null
+                val obj = JSONObject()
+                obj.put("id", id)
+                obj.put("title", "歇后语·第${level}关")
+                obj.put("content", text)
+                return obj
+            }
+        }
+        if (id.startsWith("wubi_chengyu_")) {
+            val level = id.removePrefix("wubi_chengyu_").toIntOrNull() ?: return null
+            ensureChengyuLevelsLoaded()
+            if (level in 1..wubiChengyuLevels.size) {
+                val text = wubiChengyuLevels.getOrNull(level - 1) ?: return null
+                val obj = JSONObject()
+                obj.put("id", id)
+                obj.put("title", "成语·第${level}关")
                 obj.put("content", text)
                 return obj
             }
@@ -1860,15 +1955,97 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun ensureXiehouyuLevelsLoaded() {
+        if (wubiXiehouyuLevels.isNotEmpty()) return
+        try {
+            assets.open("xiehouyu_levels.json").bufferedReader().use { reader ->
+                val json = org.json.JSONObject(reader.readText())
+                val levels = json.getJSONArray("levels")
+                wubiXiehouyuLevels.clear()
+                for (i in 0 until levels.length()) {
+                    val levelObj = levels.getJSONObject(i)
+                    val items = levelObj.getJSONArray("items")
+                    val sb = StringBuilder()
+                    for (j in 0 until items.length()) {
+                        if (j > 0) sb.append(" ")
+                        sb.append(items.getString(j))
+                    }
+                    wubiXiehouyuLevels.add(sb.toString())
+                }
+            }
+        } catch (e: Exception) {
+            wubiXiehouyuLevels.clear()
+            e.printStackTrace()
+        }
+    }
+
+    private fun ensureChengyuLevelsLoaded() {
+        if (wubiChengyuLevels.isNotEmpty()) return
+        try {
+            assets.open("chengyu_levels.json").bufferedReader().use { reader ->
+                val json = org.json.JSONObject(reader.readText())
+                val levels = json.getJSONArray("levels")
+                wubiChengyuLevels.clear()
+                for (i in 0 until levels.length()) {
+                    val levelObj = levels.getJSONObject(i)
+                    wubiChengyuLevels.add(levelObj.getString("content"))
+                }
+            }
+        } catch (e: Exception) {
+            wubiChengyuLevels.clear()
+            e.printStackTrace()
+        }
+    }
+
+    private fun loadChengyuDict(): HashMap<String, JSONObject> {
+        val map = HashMap<String, JSONObject>()
+        try {
+            assets.open("chengyu_dict.json").bufferedReader().use { reader ->
+                val json = org.json.JSONObject(reader.readText())
+                for (key in json.keys()) {
+                    map[key] = json.getJSONObject(key)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return map
+    }
+
     private fun renderWubiLevels() {
-        ensureWubiSingleLevelsLoaded()
+        val levels: Int
+        val doneKey: String
+        when (wubiCategory) {
+            "xiehouyu" -> {
+                ensureXiehouyuLevelsLoaded()
+                levels = wubiXiehouyuLevels.size
+                doneKey = "wubi_xiehouyu_done"
+                wubiLevelsTitle.text = getString(R.string.wubi_levels_title)
+                wubiLevelsDesc.text = getString(R.string.wubi_level_desc_xiehouyu)
+            }
+            "chengyu" -> {
+                ensureChengyuLevelsLoaded()
+                levels = wubiChengyuLevels.size
+                doneKey = "wubi_chengyu_done"
+                wubiLevelsTitle.text = getString(R.string.wubi_levels_title)
+                wubiLevelsDesc.text = getString(R.string.wubi_level_desc_chengyu)
+            }
+            else -> {
+                ensureWubiSingleLevelsLoaded()
+                levels = wubiSingleLevels.size
+                doneKey = "wubi_single_done"
+                wubiLevelsTitle.text = getString(R.string.wubi_levels_title)
+                wubiLevelsDesc.text = getString(R.string.wubi_level_desc_single)
+            }
+        }
         wubiLevelsContainer.removeAllViews()
-        val levels = wubiSingleLevels.size
+        val prefs = getSharedPreferences("typing_app_data", Context.MODE_PRIVATE)
+        val doneMap = try { JSONObject(prefs.getString(doneKey, "{}")) } catch (e: Exception) { JSONObject() }
         for (i in 0 until levels) {
             val level = i + 1
             val btn = Button(this)
-            val doneCount = getWubiLevelDone(level)
-            btn.text = getString(R.string.wubi_level_done_format, level, doneCount)
+            val doneCount = doneMap.optInt(level.toString(), 0)
+            btn.text = if (doneCount > 0) getString(R.string.wubi_level_done_format, level, doneCount) else getString(R.string.wubi_level_format, level)
             btn.textSize = 16f
             btn.setAllCaps(false)
             btn.isAllCaps = false
@@ -1881,16 +2058,31 @@ class MainActivity : AppCompatActivity() {
             btn.setBackgroundResource(R.drawable.bg_level_button)
             btn.setTextColor(Color.parseColor("#E65C53"))
             btn.setOnClickListener {
-                startWubiSinglePractice(level)
+                startWubiLevelPractice(level)
             }
             wubiLevelsContainer.addView(btn)
         }
     }
 
-    private fun startWubiSinglePractice(level: Int) {
-        ensureWubiSingleLevelsLoaded()
-        if (level < 1 || level > wubiSingleLevels.size) return
-        currentContentId = "wubi_single_$level"
+    private fun startWubiLevelPractice(level: Int) {
+        val text = when (wubiCategory) {
+            "xiehouyu" -> {
+                ensureXiehouyuLevelsLoaded()
+                if (level < 1 || level > wubiXiehouyuLevels.size) return
+                wubiXiehouyuLevels.getOrNull(level - 1) ?: return
+            }
+            "chengyu" -> {
+                ensureChengyuLevelsLoaded()
+                if (level < 1 || level > wubiChengyuLevels.size) return
+                wubiChengyuLevels.getOrNull(level - 1) ?: return
+            }
+            else -> {
+                ensureWubiSingleLevelsLoaded()
+                if (level < 1 || level > wubiSingleLevels.size) return
+                wubiSingleLevels.getOrNull(level - 1) ?: return
+            }
+        }
+        currentContentId = "wubi_${wubiCategory}_$level"
         practiceMode = "normal"
         isWubiPractice = true
         practiceReturnPage = "wubiLevels"
@@ -1898,13 +2090,21 @@ class MainActivity : AppCompatActivity() {
         initPractice()
     }
 
+    private fun startWubiSinglePractice(level: Int) {
+        wubiCategory = "single"
+        startWubiLevelPractice(level)
+    }
+
     // ===== 五笔单字关卡完成次数 =====
     private fun wubiDonePrefs() = getSharedPreferences("typing_app_data", Context.MODE_PRIVATE)
     private fun getWubiLevelDone(level: Int): Int {
         return wubiDonePrefs().getInt("wubi_level_done_$level", 0)
     }
-    private fun incrementWubiLevelDone(level: Int) {
-        wubiDonePrefs().edit().putInt("wubi_level_done_$level", getWubiLevelDone(level) + 1).apply()
+    private fun incrementWubiLevelDone(key: String, level: Int) {
+        val prefs = getSharedPreferences("typing_app_data", Context.MODE_PRIVATE)
+        val map = try { JSONObject(prefs.getString(key, "{}")) } catch (e: Exception) { JSONObject() }
+        map.put(level.toString(), map.optInt(level.toString(), 0) + 1)
+        prefs.edit().putString(key, map.toString()).apply()
     }
 
     private fun dp(value: Int): Int {
