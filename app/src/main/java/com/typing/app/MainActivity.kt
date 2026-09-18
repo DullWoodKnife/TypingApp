@@ -874,9 +874,11 @@ class MainActivity : AppCompatActivity() {
             return
         }
         updateWubiHint(text)
-        // 成语关卡：自动显示光标所在成语的拼音和释义
+        // 成语关卡：自动显示光标所在成语的拼音和释义；非成语关卡清空释义
         if (currentContentId.startsWith("wubi_chengyu_")) {
             updateChengyuHint(text)
+        } else {
+            dictHint.text = ""
         }
     }
 
