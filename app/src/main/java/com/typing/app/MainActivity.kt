@@ -885,11 +885,11 @@ class MainActivity : AppCompatActivity() {
             dictHint.text = ""
             return
         }
-        // 向前找空格或开头，向后找空格或结尾，确定当前成语范围
+        // 向前找空白或开头，向后找空白或结尾，确定当前成语范围
         var start = idx
-        while (start > 0 && text[start - 1] != ' ') start--
+        while (start > 0 && !text[start - 1].isWhitespace()) start--
         var end = idx
-        while (end < text.length && text[end] != ' ') end++
+        while (end < text.length && !text[end].isWhitespace()) end++
         val chengyu = text.substring(start, end)
         if (chengyu.isBlank() || chengyu.length < 2) {
             dictHint.text = ""
@@ -1967,8 +1967,9 @@ class MainActivity : AppCompatActivity() {
                     val items = levelObj.getJSONArray("items")
                     val sb = StringBuilder()
                     for (j in 0 until items.length()) {
-                        if (j > 0) sb.append(" ")
-                        sb.append(items.getString(j))
+                        if (j > 0) sb.append("\u2009")
+                        val item = items.getString(j).replace("-", "\u2014\u2014")
+                        sb.append(item)
                     }
                     wubiXiehouyuLevels.add(sb.toString())
                 }
@@ -1988,7 +1989,9 @@ class MainActivity : AppCompatActivity() {
                 wubiChengyuLevels.clear()
                 for (i in 0 until levels.length()) {
                     val levelObj = levels.getJSONObject(i)
-                    wubiChengyuLevels.add(levelObj.getString("content"))
+                    val content = levelObj.getString("content")
+                    // 将普通空格替换为窄空格，缩小成语间距
+                    wubiChengyuLevels.add(content.replace(" ", "\u2009"))
                 }
             }
         } catch (e: Exception) {
@@ -2045,7 +2048,7 @@ class MainActivity : AppCompatActivity() {
             val level = i + 1
             val btn = Button(this)
             val doneCount = doneMap.optInt(level.toString(), 0)
-            btn.text = if (doneCount > 0) getString(R.string.wubi_level_done_format, level, doneCount) else getString(R.string.wubi_level_format, level)
+            btn.text = getString(R.string.wubi_level_done_format, level, doneCount)
             btn.textSize = 16f
             btn.setAllCaps(false)
             btn.isAllCaps = false
