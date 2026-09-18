@@ -451,6 +451,10 @@ class TypingTextView @JvmOverloads constructor(
         val totalRows = totalRows()
         val fm = textPaint.fontMetrics
 
+        // userInput 与 visibleIndices 的跨行同步下标
+        var ui = 0
+        var vi = 0
+
         for (row in 0 until totalRows) {
             val rowStart = if (row < rowStarts.size) rowStarts[row] else n
             val rowEnd = if (row + 1 < rowStarts.size) rowStarts[row + 1] else n
@@ -495,9 +499,12 @@ class TypingTextView @JvmOverloads constructor(
             val inputBaseline = rowTop + rowHeight * 0.55f
             if (userInput.isNotEmpty() && visibleIndices.isNotEmpty()) {
                 textPaint.color = colorInputText
-                var ui = 0
-                var vi = 0
-                while (vi < visibleIndices.size && visibleIndices[vi] < rowStart) vi++
+                // 同步跳过本行之前的所有内容
+                while (vi < visibleIndices.size && visibleIndices[vi] < rowStart && ui < userInput.length) {
+                    if (!userInput[ui].isWhitespace()) vi++
+                    ui++
+                }
+                // 画本行范围内的
                 while (ui < userInput.length && vi < visibleIndices.size && visibleIndices[vi] < rowEnd) {
                     if (userInput[ui].isWhitespace()) { ui++; continue }
                     val origIdx = visibleIndices[vi]
@@ -560,6 +567,8 @@ class TypingTextView @JvmOverloads constructor(
         if (index >= originalText.length) return colorPending
         val c = originalText[index]
         if (c.isWhitespace()) return colorPending
+        // 如果用户还没输入任何内容，所有非空格字符都显示为 pending
+        if (userInput.isEmpty()) return colorPending
         // 统计 originalText[0..index] 和 userInput 中各自非空格字符数，找到对应关系
         var origVis = 0
         for (i in 0..index) {
