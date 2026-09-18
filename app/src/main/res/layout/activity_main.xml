@@ -1074,6 +1074,18 @@
                     android:layout_marginBottom="12dp" />
 
                 <Button
+                    android:id="@+id/btn_wubi_cat_xiehouyu"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="64dp"
+                    android:paddingVertical="18dp"
+                    android:text="@string/wubi_category_xiehouyu"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    app:strokeColor="@color/destructive"
+                    android:textColor="@color/destructive"
+                    android:layout_marginBottom="12dp" />
+
+                <Button
                     android:id="@+id/btn_wubi_cat_custom"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -1107,6 +1119,7 @@
                     android:paddingBottom="8dp">
 
                     <TextView
+                        android:id="@+id/wubi_levels_title"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
@@ -1128,6 +1141,7 @@
                 </LinearLayout>
 
                 <TextView
+                    android:id="@+id/wubi_levels_desc"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/wubi_level_desc"
