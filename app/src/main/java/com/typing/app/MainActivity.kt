@@ -508,8 +508,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
         typingTextView.onSelectionDismissed = {
-            // 取消长按选中时，同时关闭查词弹窗；未完成练习则回到输入框
-            dismissWordLookupPopup()
             if (!isFinished) focusInput()
         }
 
@@ -640,12 +638,6 @@ class MainActivity : AppCompatActivity() {
         pageWubiLevels.visibility = View.GONE
         pageCustomArticles.visibility = View.GONE
         pageCustomArticleEdit.visibility = View.GONE
-
-        // 离开练习页时，清除长按选中高亮并关闭查词弹窗，避免状态残留到其它页面/文章
-        if (pageId != "practice") {
-            typingTextView.clearSelection()
-            dismissWordLookupPopup()
-        }
 
         when (pageId) {
             "home" -> pageHome.visibility = View.VISIBLE
@@ -958,12 +950,6 @@ class MainActivity : AppCompatActivity() {
             wordInfoPopup = null
         }
         wordInfoPopup = pw
-    }
-
-    // 关闭查词/添加到生词本弹窗
-    private fun dismissWordLookupPopup() {
-        wordInfoPopup?.dismiss()
-        wordInfoPopup = null
     }
 
     private fun isClickOnView(v: View, rawX: Int, rawY: Int): Boolean {
@@ -1608,11 +1594,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun saveCustomArticle() {
         val title = customArticleInputTitle.text.toString().trim()
-        val content = customArticleInputContent.text.toString().trim()
+        var content = customArticleInputContent.text.toString().trim()
         if (title.isEmpty() || content.isEmpty()) {
             showModal(getString(R.string.title_cannot_empty), getString(R.string.msg_title_content_empty))
             return
         }
+        // 清理格式：合并连续空白为单个空格，移除不可见控制字符
+        content = content.replace(Regex("\\s+"), " ")
+        content = content.filter { it.code !in 0x00..0x08 && it.code !in 0x0B..0x0C && it.code !in 0x0E..0x1F && it.code != 0x7F }
         val arts = getCustomArticles()
         val editId = customArticleEditId
         if (editId != null) {
