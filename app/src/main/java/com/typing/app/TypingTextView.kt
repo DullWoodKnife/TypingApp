@@ -106,6 +106,8 @@ class TypingTextView @JvmOverloads constructor(
     private var rowRights = FloatArray(0)
     private var layoutRows = 1
     private var gridPadding = 0f
+    // originalText 中非空白字符的下标，用于 userInput 与 originalText 对齐
+    private var visibleIndices = IntArray(0)
 
     fun setTextData(original: String, input: String, showCursor: Boolean) {
         // 文本/输入无变化时（如光标闪烁刷新），只重绘光标，不做布局重算，
@@ -119,23 +121,27 @@ class TypingTextView @JvmOverloads constructor(
         userInput = input
         cursorVisible = showCursor
         isEnglishContent = detectEnglishContent(original)
-        // 内容切换时清除长按选中状态，避免高亮残留到其它文章
-        clearSelectionInternal()
         needsLayout = true
         invalidate()
         requestLayout()
     }
 
-    // 内容判定：只要出现汉字/中文标点/全角字符就走中文网格排版，否则按英文紧排
+    // 内容判定：按汉字占比决定排版模式。
+    // 有效字符（非空白）中汉字/中文标点/全角字符占比 >= 30% 时走中文固定网格，否则按英文自然排版。
+    // 这样混合文本（少量英文术语+大量中文）仍走中文网格；英文占主体的文本则按英文排版，避免单词被拆开。
     private fun detectEnglishContent(s: String): Boolean {
         if (s.isEmpty()) return false
+        var cjkCount = 0
+        var totalCount = 0
         for (c in s) {
+            if (c.isWhitespace()) continue
+            totalCount++
             val code = c.code
-            if (code in 0x4E00..0x9FA5) return false      // 汉字
-            if (code in 0x3000..0x303F) return false      // 中文标点
-            if (code in 0xFF00..0xFFEF) return false      // 全角字符
+            if (code in 0x4E00..0x9FA5 || code in 0x3000..0x303F || code in 0xFF00..0xFFEF) {
+                cjkCount++
+            }
         }
-        return true
+        return if (totalCount == 0) false else cjkCount.toFloat() / totalCount < 0.30f
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -179,6 +185,7 @@ class TypingTextView @JvmOverloads constructor(
             charRows = IntArray(0)
             rowStarts = IntArray(0)
             rowRights = FloatArray(0)
+            visibleIndices = IntArray(0)
             layoutRows = 1
             return
         }
@@ -189,6 +196,7 @@ class TypingTextView @JvmOverloads constructor(
 
         val starts = ArrayList<Int>()
         val rights = ArrayList<Float>()
+        val vis = ArrayList<Int>()
         var curRow = 0
         var curRight = 0f
         starts.add(0)
@@ -201,18 +209,33 @@ class TypingTextView @JvmOverloads constructor(
             }
             val w = if (isEnglishContent) textPaint.measureText(originalText[i].toString()) else charWidth
             curRight = maxOf(curRight, charXs[i] + w)
+            if (!originalText[i].isWhitespace()) vis.add(i)
         }
         rights.add(curRight)
         rowStarts = starts.toIntArray()
         rowRights = rights.toFloatArray()
+        visibleIndices = vis.toIntArray()
         layoutRows = starts.size
     }
 
-    // 中文：保持原有 17 字 / 行的固定网格，居中留白
+    // 中文：固定网格，但空格/窄空格宽度缩小，避免成语/歇后语间隔过大
     private fun computeChineseLayout(n: Int) {
+        val spaceW = charWidth * 0.3f
+        var row = 0
+        var x = gridPadding
+        var count = 0
         for (i in 0 until n) {
-            charRows[i] = i / CHARS_PER_ROW
-            charXs[i] = gridPadding + (i % CHARS_PER_ROW) * charWidth
+            val c = originalText[i]
+            val w = if (c.isWhitespace()) spaceW else charWidth
+            if (x + w > gridPadding + charWidth * CHARS_PER_ROW && count > 0) {
+                row++
+                x = gridPadding
+                count = 0
+            }
+            charRows[i] = row
+            charXs[i] = x
+            x += w
+            count++
         }
     }
 
@@ -337,9 +360,6 @@ class TypingTextView @JvmOverloads constructor(
                         draggingHandle = 2
                         parent?.requestDisallowInterceptTouchEvent(true)
                         return true
-                    } else {
-                        // 点击选中区域以外的地方 → 取消选中
-                        clearSelection()
                     }
                 }
             }
@@ -381,21 +401,6 @@ class TypingTextView @JvmOverloads constructor(
     }
 
     private fun n_(): Int = originalText.length
-
-    // 清除长按选中状态（高亮+手柄），并通知宿主
-    fun clearSelection() {
-        if (selStart == -1 && selEnd == -1) return
-        clearSelectionInternal()
-        invalidate()
-        onSelectionDismissed?.invoke()
-    }
-
-    // 静默清除选中状态（不回调），供内容切换等内部场景使用
-    private fun clearSelectionInternal() {
-        selStart = -1
-        selEnd = -1
-        draggingHandle = 0
-    }
 
     private fun dist(x1: Float, y1: Float, x2: Float, y2: Float): Float {
         val dx = x1 - x2; val dy = y1 - y2
@@ -486,17 +491,18 @@ class TypingTextView @JvmOverloads constructor(
             }
 
             // === User input at 55% of row ===
+            // userInput 按 visibleIndices 对齐：跳过双方空格，将输入字符与 originalText 的非空白字符一一对应
             val inputBaseline = rowTop + rowHeight * 0.55f
-            val inputEnd = minOf(userInput.length, rowEnd)
-            if (inputEnd > rowStart) {
+            if (userInput.isNotEmpty() && visibleIndices.isNotEmpty()) {
                 textPaint.color = colorInputText
-                // 以行首 x 为起点，按每个字符自身的实际宽度逐步推进，
-                // 避免错误字符（比参考槽位更宽）溢出到下一槽位造成字符重叠。
-                var ix = charXs[rowStart]
-                for (i in rowStart until inputEnd) {
-                    val cs = userInput[i].toString()
-                    canvas.drawText(cs, ix, inputBaseline, textPaint)
-                    ix += textPaint.measureText(cs)
+                var ui = 0
+                var vi = 0
+                while (vi < visibleIndices.size && visibleIndices[vi] < rowStart) vi++
+                while (ui < userInput.length && vi < visibleIndices.size && visibleIndices[vi] < rowEnd) {
+                    if (userInput[ui].isWhitespace()) { ui++; continue }
+                    val origIdx = visibleIndices[vi]
+                    canvas.drawText(userInput[ui].toString(), charXs[origIdx], inputBaseline, textPaint)
+                    ui++; vi++
                 }
             }
 
@@ -516,13 +522,23 @@ class TypingTextView @JvmOverloads constructor(
         }
 
         // === Blue cursor on user input line ===
-        if (cursorVisible && userInput.length <= n) {
-            val idx = if (userInput.length < n) userInput.length else n - 1
-            val row = charRows[idx]
-            var cursorX = charXs[idx]
-            if (userInput.length >= n) {
+        if (cursorVisible && visibleIndices.isNotEmpty()) {
+            // 统计 userInput 中已输入的非空格字符数，以此定位光标
+            var matchedVisCount = 0
+            var ui = 0
+            var vi = 0
+            while (ui < userInput.length && vi < visibleIndices.size) {
+                if (userInput[ui].isWhitespace()) { ui++; continue }
+                matchedVisCount++; ui++; vi++
+            }
+            val (row, cursorX) = if (matchedVisCount < visibleIndices.size) {
+                val idx = visibleIndices[matchedVisCount]
+                charRows[idx] to charXs[idx]
+            } else {
                 // 已输完：光标停在最后一个字符右侧
-                cursorX += if (isEnglishContent) textPaint.measureText(originalText[idx].toString()) else charWidth
+                val idx = visibleIndices.last()
+                val cw = if (isEnglishContent) textPaint.measureText(originalText[idx].toString()) else charWidth
+                charRows[idx] to (charXs[idx] + cw)
             }
 
             val rowTop = topPadding + row * rowHeight
@@ -542,9 +558,21 @@ class TypingTextView @JvmOverloads constructor(
 
     private fun getCharColor(index: Int): Int {
         if (index >= originalText.length) return colorPending
-        if (index >= userInput.length) {
-            return if (index == userInput.length) colorCurrent else colorPending
+        val c = originalText[index]
+        if (c.isWhitespace()) return colorPending
+        // 统计 originalText[0..index] 和 userInput 中各自非空格字符数，找到对应关系
+        var origVis = 0
+        for (i in 0..index) {
+            if (!originalText[i].isWhitespace()) origVis++
         }
-        return if (userInput[index] == originalText[index]) colorCorrect else colorWrong
+        var ui = 0
+        var uiVis = 0
+        while (ui < userInput.length && uiVis < origVis) {
+            if (!userInput[ui].isWhitespace()) uiVis++
+            ui++
+        }
+        // 此时 ui-1 就是对应的 userInput 字符（如果存在）
+        val match = ui > 0 && !userInput[ui - 1].isWhitespace() && userInput[ui - 1] == c
+        return if (match) colorCorrect else colorWrong
     }
 }
