@@ -102,6 +102,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var wubiHint: TextView
     private lateinit var dictHint: TextView
     private lateinit var dictHintScroll: ScrollView
+    private lateinit var practicePageTitle: TextView
     private var wubiTable: HashMap<String, String>? = null
     private var hanziDict: HashMap<String, HanziEntry>? = null
     private var enZhDict: HashMap<String, String>? = null
@@ -306,6 +307,7 @@ class MainActivity : AppCompatActivity() {
         statSpeed = findViewById(R.id.stat_speed)
         statAcc = findViewById(R.id.stat_acc)
         practiceHint = findViewById(R.id.practice_hint)
+        practicePageTitle = findViewById(R.id.practice_page_title)
         wubiHint = findViewById(R.id.wubi_hint)
         dictHint = findViewById(R.id.dict_hint)
         dictHintScroll = findViewById(R.id.dict_hint_scroll)
@@ -1097,6 +1099,14 @@ class MainActivity : AppCompatActivity() {
         isFinished = false
         elapsed = 0
         userInput = ""
+
+        // 更新练习页标题：五笔关卡模式显示"练习模式–第X关"
+        if (isWubiPractice && practiceReturnPage == "wubiLevels") {
+            val levelNum = wubiSingleLevelIndex + 1
+            practicePageTitle.text = "练习模式—第${levelNum}关"
+        } else {
+            practicePageTitle.text = getString(R.string.practice_title)
+        }
 
         statTime.text = "00:00"
         statTime.setTextColor(Color.parseColor("#CC000000"))
