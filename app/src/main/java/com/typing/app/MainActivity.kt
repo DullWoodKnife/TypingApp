@@ -1100,10 +1100,16 @@ class MainActivity : AppCompatActivity() {
         elapsed = 0
         userInput = ""
 
-        // 更新练习页标题：五笔关卡模式显示"练习模式–第X关"
+        // 更新练习页标题：五笔关卡模式显示"分类-第X关-练习模式"
         if (isWubiPractice && practiceReturnPage == "wubiLevels") {
-            val levelNum = wubiSingleLevelIndex + 1
-            practicePageTitle.text = "练习模式—第${levelNum}关"
+            val levelNum = currentContentId.removePrefix("wubi_${wubiCategory}_").toIntOrNull() ?: 1
+            val categoryName = when (wubiCategory) {
+                "single" -> "单字"
+                "chengyu" -> "成语"
+                "xiehouyu" -> "歇后语"
+                else -> "单字"
+            }
+            practicePageTitle.text = "${categoryName}-第${levelNum}关-练习模式"
         } else {
             practicePageTitle.text = getString(R.string.practice_title)
         }
