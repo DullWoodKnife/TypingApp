@@ -569,18 +569,21 @@ class TypingTextView @JvmOverloads constructor(
         if (c.isWhitespace()) return colorPending
         // 如果用户还没输入任何内容，所有非空格字符都显示为 pending
         if (userInput.isEmpty()) return colorPending
-        // 统计 originalText[0..index] 和 userInput 中各自非空格字符数，找到对应关系
+        // 统计 originalText[0..index] 中的非空格字符数
         var origVis = 0
         for (i in 0..index) {
             if (!originalText[i].isWhitespace()) origVis++
         }
+        // 在 userInput 中找到第 origVis 个非空格字符的位置
         var ui = 0
         var uiVis = 0
         while (ui < userInput.length && uiVis < origVis) {
             if (!userInput[ui].isWhitespace()) uiVis++
             ui++
         }
-        // 此时 ui-1 就是对应的 userInput 字符（如果存在）
+        // 如果 userInput 的非空格字符数不足以覆盖到当前位置，显示 pending（黑色）
+        if (uiVis < origVis) return colorPending
+        // 此时 ui-1 就是对应的 userInput 字符
         val match = ui > 0 && !userInput[ui - 1].isWhitespace() && userInput[ui - 1] == c
         return if (match) colorCorrect else colorWrong
     }
