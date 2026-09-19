@@ -1000,7 +1000,7 @@ class MainActivity : AppCompatActivity() {
         val popupW = view.measuredWidth.coerceAtMost(maxW)
         val popupH = if (view.measuredHeight > 0) view.measuredHeight else (44 * density).toInt()
 
-        val pw = PopupWindow(view, popupW, ViewGroup.LayoutParams.WRAP_CONTENT, true)
+        val pw = PopupWindow(view, popupW, ViewGroup.LayoutParams.WRAP_CONTENT, false)
         // 透明背景：整块圆角由 popup_wordbook 的 bg_popup_box 提供，避免出现白色方角
         pw.setBackgroundDrawable(ColorDrawable(0x00000000))
         pw.elevation = 12f
@@ -1035,11 +1035,12 @@ class MainActivity : AppCompatActivity() {
             pw.dismiss()
         }
 
-        // 点击弹窗外部：PopupWindow 自动 dismiss；无论以何种方式消失，都同步清除选中高亮
-        pw.isOutsideTouchable = true
+        // 非焦点 + 非外部可触摸：不拦截弹窗外的触摸，避免吞掉选中手柄的按下事件（否则无法拖动扩选）。
+        // 弹窗的关闭由“点击按钮”或“点击正文其它位置（clearSelection -> onSelectionDismissed）”驱动，
+        // 不再在 dismiss 时无条件清空选中，避免复用同一弹窗刷新时误清选中。
+        pw.isOutsideTouchable = false
         pw.setOnDismissListener {
             wordInfoPopup = null
-            typingTextView.clearSelectionSilently()
         }
         wordInfoPopup = pw
     }
