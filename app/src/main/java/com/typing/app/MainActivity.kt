@@ -1,5 +1,7 @@
 package com.typing.app
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -530,6 +532,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         typingTextView.onSelectionDismissed = {
+            dismissWordLookupPopup()
             if (!isFinished) focusInput()
         }
 
@@ -976,43 +979,75 @@ class MainActivity : AppCompatActivity() {
         // 弹窗
         wordInfoPopup?.dismiss()
         val view = LayoutInflater.from(this).inflate(R.layout.popup_wordbook, null)
-        val tvWord = view.findViewById<TextView>(R.id.popup_word)
         val tvAdd = view.findViewById<TextView>(R.id.popup_add)
-        tvWord.text = word
+        val tvHighlight = view.findViewById<TextView>(R.id.popup_highlight)
+        val tvCopy = view.findViewById<TextView>(R.id.popup_copy)
         tvAdd.text = "添加到生词本"
-        val pw = PopupWindow(view, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)
-        pw.setBackgroundDrawable(ColorDrawable(0xCCFFFFFF.toInt()))
+        tvHighlight.text = "高亮"
+        tvCopy.text = "复制"
+
+        val density = resources.displayMetrics.density
+        val screenW = resources.displayMetrics.widthPixels
+        val screenH = resources.displayMetrics.heightPixels
+        val margin = (8 * density).toInt()
+
+        // 测量弹窗内容，最大宽度限制为屏幕宽度（超出部分由横向滚动承载，避免弹出屏幕外）
+        val maxW = (screenW - 2 * margin).coerceAtLeast((160 * density).toInt())
+        view.measure(
+            View.MeasureSpec.makeMeasureSpec(maxW, View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val popupW = view.measuredWidth.coerceAtMost(maxW)
+        val popupH = if (view.measuredHeight > 0) view.measuredHeight else (44 * density).toInt()
+
+        val pw = PopupWindow(view, popupW, ViewGroup.LayoutParams.WRAP_CONTENT, true)
+        // 透明背景：整块圆角由 popup_wordbook 的 bg_popup_box 提供，避免出现白色方角
+        pw.setBackgroundDrawable(ColorDrawable(0x00000000))
         pw.elevation = 12f
-        // 计算锚点：基于 TypingTextView 在窗口中的位置 + 触摸坐标
+
+        // 计算锚点：基于 TypingTextView 位置 + 触摸坐标，并做屏幕边界处理
         val loc = IntArray(2)
         typingTextView.getLocationOnScreen(loc)
-        val x = (loc[0] + anchorX).coerceAtLeast(8)
-        // 在触摸点上方 80dp 弹出，避免被键盘或软键盘遮挡
-        val y = (loc[1] + anchorY - (80 * resources.displayMetrics.density).toInt()).coerceAtLeast(loc[1] - 200)
+        val x = (loc[0] + anchorX - popupW / 2)
+            .coerceIn(margin, (screenW - popupW - margin).coerceAtLeast(margin))
+        val y = (loc[1] + anchorY - popupH - (12 * density).toInt())
+            .coerceIn(margin, (screenH - popupH - margin).coerceAtLeast(margin))
         pw.showAtLocation(typingTextView, Gravity.NO_GRAVITY, x, y)
-        // 点 PopupWindow 内部"添加到生词本"按钮
+
+        // 添加到生词本
         tvAdd.setOnClickListener {
             addToWordbook(word, isHanzi)
             pw.dismiss()
         }
-        // 点 PopupWindow 其它区域：点击事件已被 PopupWindow 拦截；外部触摸自动 dismiss（下面配置）
-        pw.setTouchInterceptor { _, ev ->
-            if (ev.actionMasked == MotionEvent.ACTION_UP) {
-                val dismiss = if (ev.x >= 0 && ev.x < view.width && ev.y >= 0 && ev.y < view.height) {
-                    // 点在 PopupWindow 内（且没命中"添加到生词本"已单独处理）→ 不消失
-                    !isClickOnView(tvAdd, ev.rawX.toInt(), ev.rawY.toInt())
-                } else true
-                if (dismiss) {
-                    pw.dismiss()
-                    true
-                } else false
-            } else false
+        // 高亮：将所选区域设为黄色高亮
+        tvHighlight.setOnClickListener {
+            typingTextView.addHighlightFromSelection()
+            pw.dismiss()
         }
+        // 复制：复制所选文本到系统剪贴板
+        tvCopy.setOnClickListener {
+            val sel = typingTextView.selectedText()
+            if (sel.isNotEmpty()) {
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("typing", sel))
+                Toast.makeText(this, "已复制", Toast.LENGTH_SHORT).show()
+            }
+            pw.dismiss()
+        }
+
+        // 点击弹窗外部：PopupWindow 自动 dismiss；无论以何种方式消失，都同步清除选中高亮
         pw.isOutsideTouchable = true
         pw.setOnDismissListener {
             wordInfoPopup = null
+            typingTextView.clearSelectionSilently()
         }
         wordInfoPopup = pw
+    }
+
+    // 关闭查词/添加到生词本弹窗
+    private fun dismissWordLookupPopup() {
+        wordInfoPopup?.dismiss()
+        wordInfoPopup = null
     }
 
     private fun isClickOnView(v: View, rawX: Int, rawY: Int): Boolean {

@@ -86,6 +86,14 @@ class TypingTextView @JvmOverloads constructor(
         color = Color.parseColor("#40C4FF")
         style = Paint.Style.FILL
     }
+
+    // 黄色高亮（长按弹窗"高亮"按钮写入的持久高亮区域）
+    private val yellowHighlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#FFF176")
+        style = Paint.Style.FILL
+    }
+    // 已高亮区域（字符下标，右开区间），按内容切换清空
+    private val highlightedRanges = ArrayList<IntArray>()
     private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#00BCD4")
         style = Paint.Style.FILL
@@ -121,6 +129,9 @@ class TypingTextView @JvmOverloads constructor(
         userInput = input
         cursorVisible = showCursor
         isEnglishContent = detectEnglishContent(original)
+        // 切换内容时清除长按选中状态与已高亮区域，避免残留到其它文章
+        clearSelectionInternal()
+        highlightedRanges.clear()
         needsLayout = true
         invalidate()
         requestLayout()
@@ -360,6 +371,9 @@ class TypingTextView @JvmOverloads constructor(
                         draggingHandle = 2
                         parent?.requestDisallowInterceptTouchEvent(true)
                         return true
+                    } else {
+                        // 点击选中区域以外的地方 → 取消选中并通知宿主关闭弹窗
+                        clearSelection()
                     }
                 }
             }
@@ -401,6 +415,51 @@ class TypingTextView @JvmOverloads constructor(
     }
 
     private fun n_(): Int = originalText.length
+
+    // 清除长按选中状态（高亮+手柄），并通知宿主（用于关闭查词弹窗）
+    fun clearSelection() {
+        if (selStart == -1 && selEnd == -1) return
+        clearSelectionInternal()
+        invalidate()
+        onSelectionDismissed?.invoke()
+    }
+
+    // 静默清除选中状态（不回调），供内容切换等内部场景使用
+    private fun clearSelectionInternal() {
+        selStart = -1
+        selEnd = -1
+        draggingHandle = 0
+    }
+
+    // 当前是否处于选中状态
+    fun hasSelection(): Boolean = selStart in 0 until n_() && selEnd in 0..n_() && selEnd > selStart
+
+    // 当前选中文本
+    fun selectedText(): String {
+        if (!hasSelection()) return ""
+        return originalText.substring(selStart, selEnd)
+    }
+
+    // 将当前选中区域加入黄色高亮
+    fun addHighlightFromSelection() {
+        if (!hasSelection()) return
+        highlightedRanges.add(intArrayOf(selStart, selEnd))
+        clearSelectionInternal()
+        invalidate()
+        onSelectionDismissed?.invoke()
+    }
+
+    fun clearHighlights() {
+        highlightedRanges.clear()
+        invalidate()
+    }
+
+    // 静默清除选中（不触发回调），供弹窗因外部点击消失时同步清除高亮，避免回调递归
+    fun clearSelectionSilently() {
+        if (selStart == -1 && selEnd == -1) return
+        clearSelectionInternal()
+        invalidate()
+    }
 
     private fun dist(x1: Float, y1: Float, x2: Float, y2: Float): Float {
         val dx = x1 - x2; val dy = y1 - y2
@@ -472,6 +531,21 @@ class TypingTextView @JvmOverloads constructor(
 
             // === Original text at 25% of row ===
             val originalBaseline = rowTop + rowHeight * 0.25f
+
+            // === 已"高亮"的黄色背景块（长按弹窗"高亮"按钮写入）===
+            for (hr in highlightedRanges) {
+                val hs2 = maxOf(hr[0], rowStart)
+                val he2 = minOf(hr[1], rowEnd)
+                if (he2 > hs2) {
+                    var hLeft2 = charXs[hs2]
+                    var hRight2 = charXs[he2 - 1]
+                    if (isEnglishContent) hRight2 += textPaint.measureText(originalText[he2 - 1].toString())
+                    else hRight2 += charWidth
+                    val yTop = originalBaseline + fm.ascent - 2f
+                    val yBottom = originalBaseline + fm.descent + 2f
+                    canvas.drawRect(hLeft2, yTop, hRight2, yBottom, yellowHighlightPaint)
+                }
+            }
 
             // === 选中词高亮背景（与字形实际高度一致的矩形色块）===
             if (selStart in 0..n && selEnd in selStart..n && selEnd > selStart) {
