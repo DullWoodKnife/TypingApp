@@ -138,6 +138,8 @@ class MainActivity : AppCompatActivity() {
 
     // 长按选词弹出的 PopupWindow
     private var wordInfoPopup: PopupWindow? = null
+    // 是否处于“长按查词”态：为 true 时保留 dictHint 释义，避免光标闪烁/输入刷新把它清空
+    private var wordLookupActive = false
 
     // Content list
     private lateinit var contentListTitle: TextView
@@ -651,6 +653,11 @@ class MainActivity : AppCompatActivity() {
     // ===== Page Navigation =====
 
     private fun showPage(pageId: String) {
+        // 页面切换时，先关闭长按查词弹窗并结束查词态，避免弹窗悬浮在新页面上（如返回关卡选择界面）。
+        dismissWordLookupPopup()
+        if (::typingTextView.isInitialized) {
+            typingTextView.clearSelectionSilently()
+        }
         pageHome.visibility = View.GONE
         pagePractice.visibility = View.GONE
         pageContentList.visibility = View.GONE
@@ -877,6 +884,9 @@ class MainActivity : AppCompatActivity() {
             return
         }
         updateWubiHint(text)
+        // 长按查词期间：保留 dictHint 中正在展示的字词释义，
+        // 否则光标闪烁 / 输入刷新会反复执行到这里，把释义重置为空，表现为“闪一下就不见了”。
+        if (wordLookupActive) return
         // 成语关卡：自动显示光标所在成语的拼音和释义；非成语关卡清空释义
         if (currentContentId.startsWith("wubi_chengyu_")) {
             updateChengyuHint(text)
@@ -974,10 +984,14 @@ class MainActivity : AppCompatActivity() {
 
     // 弹出"添加到生词本"小卡片；长按位置附近
     private fun showWordLookupPopup(word: String, isHanzi: Boolean, anchorX: Int, anchorY: Int) {
+        // 先关闭旧弹窗（其 dismiss 回调会把 wordLookupActive 复位），再进入新的长按查词态，顺序不可颠倒。
+        wordInfoPopup?.dismiss()
+        wordInfoPopup = null
+        // 进入长按查词态：此后光标闪烁/输入刷新不再清空释义
+        wordLookupActive = true
         // 先填充释义
         showWordInfoInDictHint(word, isHanzi)
         // 弹窗
-        wordInfoPopup?.dismiss()
         val view = LayoutInflater.from(this).inflate(R.layout.popup_wordbook, null)
         val tvAdd = view.findViewById<TextView>(R.id.popup_add)
         val tvHighlight = view.findViewById<TextView>(R.id.popup_highlight)
@@ -1041,6 +1055,8 @@ class MainActivity : AppCompatActivity() {
         pw.isOutsideTouchable = false
         pw.setOnDismissListener {
             wordInfoPopup = null
+            // 弹窗被任意方式关闭（按钮/外部点击）后结束查词态
+            wordLookupActive = false
         }
         wordInfoPopup = pw
     }
@@ -1049,6 +1065,7 @@ class MainActivity : AppCompatActivity() {
     private fun dismissWordLookupPopup() {
         wordInfoPopup?.dismiss()
         wordInfoPopup = null
+        wordLookupActive = false
     }
 
     private fun isClickOnView(v: View, rawX: Int, rawY: Int): Boolean {
