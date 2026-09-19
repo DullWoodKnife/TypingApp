@@ -388,7 +388,10 @@
                         android:layout_marginStart="0dp" />
                 </LinearLayout>
 
-                <!-- Hidden input for keyboard -->
+                    </LinearLayout>
+                </ScrollView>
+
+                <!-- Hidden input for keyboard (outside ScrollView to prevent auto-scroll on keyboard show) -->
                 <EditText
                     android:id="@+id/hidden_input"
                     android:layout_width="1dp"
@@ -402,8 +405,6 @@
                     android:importantForAutofill="no"
                     android:textColor="@android:color/transparent"
                     android:textSize="1sp" />
-                    </LinearLayout>
-                </ScrollView>
             </LinearLayout>
 
             <!-- Page 3: Content List -->
