@@ -494,7 +494,9 @@ class TypingTextView @JvmOverloads constructor(
                 selStart = range[0]
                 selEnd = range[1]
                 updateHandlePositions()
-                onSelectionChanged?.invoke(selStart, selEnd)
+                // 说明：这里不再回调 onSelectionChanged。长按回调 onCharLongPress 已经弹出了查词弹窗，
+                // 若再次触发会重复弹出第二个弹窗，而第二个弹窗 show 前会 dismiss 第一个弹窗，
+                // 触发其 OnDismissListener 清空刚刚建立的选中（selStart/selEnd），导致蓝色选区和手柄立即消失。
                 invalidate()
             }
             return true
