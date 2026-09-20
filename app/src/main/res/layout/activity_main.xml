@@ -120,7 +120,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:orientation="vertical"
-                android:padding="16dp"
+                android:padding="@dimen/practice_page_padding"
                 android:visibility="gone">
 
                         <!-- Header -->
@@ -129,7 +129,7 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
-                    android:layout_marginBottom="16dp">
+                    android:layout_marginBottom="@dimen/practice_header_margin">
 
                     <TextView
                         android:id="@+id/practice_page_title"
@@ -137,7 +137,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="@string/practice_title"
-                        android:textSize="17sp"
+                        android:textSize="@dimen/practice_title_size"
                         android:textStyle="bold"
                         android:textColor="@color/text_primary" />
 
@@ -160,7 +160,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:layout_marginBottom="16dp">
+                    android:layout_marginBottom="@dimen/practice_stats_margin">
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -169,7 +169,7 @@
                         android:orientation="vertical"
                         android:gravity="center"
                         android:background="@color/intensity_4"
-                        android:padding="10dp"
+                        android:padding="@dimen/practice_stat_padding"
                         android:layout_marginEnd="4dp">
 
                         <TextView
@@ -177,7 +177,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="00:00"
-                            android:textSize="18sp"
+                            android:textSize="@dimen/practice_stat_value_size"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary" />
 
@@ -196,7 +196,7 @@
                         android:orientation="vertical"
                         android:gravity="center"
                         android:background="@color/intensity_4"
-                        android:padding="10dp"
+                        android:padding="@dimen/practice_stat_padding"
                         android:layout_marginStart="4dp"
                         android:layout_marginEnd="4dp">
 
@@ -205,7 +205,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="0%"
-                            android:textSize="18sp"
+                            android:textSize="@dimen/practice_stat_value_size"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary" />
 
@@ -224,7 +224,7 @@
                         android:orientation="vertical"
                         android:gravity="center"
                         android:background="@color/intensity_4"
-                        android:padding="10dp"
+                        android:padding="@dimen/practice_stat_padding"
                         android:layout_marginStart="4dp"
                         android:layout_marginEnd="4dp">
 
@@ -233,7 +233,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="0"
-                            android:textSize="18sp"
+                            android:textSize="@dimen/practice_stat_value_size"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary" />
 
@@ -252,7 +252,7 @@
                         android:orientation="vertical"
                         android:gravity="center"
                         android:background="@color/intensity_4"
-                        android:padding="10dp"
+                        android:padding="@dimen/practice_stat_padding"
                         android:layout_marginStart="4dp">
 
                         <TextView
@@ -260,7 +260,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="0%"
-                            android:textSize="18sp"
+                            android:textSize="@dimen/practice_stat_value_size"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary" />
 
@@ -309,7 +309,7 @@
                 <ScrollView
                     android:id="@+id/dict_hint_scroll"
                     android:layout_width="match_parent"
-                    android:layout_height="56dp"
+                    android:layout_height="@dimen/practice_dict_height"
                     android:fillViewport="false"
                     android:overScrollMode="ifContentScrolls"
                     android:scrollbars="vertical"
