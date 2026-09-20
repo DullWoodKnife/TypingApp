@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.util.TypedValue
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.graphics.Color
@@ -699,6 +700,8 @@ class MainActivity : AppCompatActivity() {
 
         // Update nav active state
         updateNavActive(pageId)
+        // 进入/切换页面时按当前方向套用布局（横屏隐藏导航、压缩顶部）
+        applyOrientationLayout()
     }
 
     private fun updateNavActive(pageId: String) {
@@ -2560,11 +2563,60 @@ class MainActivity : AppCompatActivity() {
     // 蓝牙键盘连接/断开时即时响应：收起软键盘、自动聚焦输入框
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        // 旋转屏幕后重新套用练习页布局（manifest 配置了 configChanges，旋转不会重建 Activity，
+        // values-land 资源不会自动重新生效，必须在此手动应用，否则横屏下顶部过高会挤没练习内容）。
+        applyOrientationLayout()
         if (pagePractice.visibility == View.VISIBLE && !isFinished) {
             if (hasHardKeyboard()) {
                 hideKeyboard()
                 hiddenInput.requestFocus()
+            } else {
+                focusInput()
             }
+        }
+    }
+
+    // 按屏幕方向调整练习页：横屏空间有限，压缩顶部区域并隐藏底部导航栏，
+    // 保证“练习内容 + 输入行 + 横线”有足够高度显示与输入；竖屏恢复默认。
+    private fun applyOrientationLayout() {
+        if (!::pagePractice.isInitialized || !::navChallenge.isInitialized) return
+        val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val density = resources.displayMetrics.density
+        val practiceVisible = pagePractice.visibility == View.VISIBLE
+
+        // 仅“练习页 + 横屏”时隐藏底部导航栏，为内容腾出高度（加保护：绝不隐藏练习页本身）
+        val navBar = navChallenge.parent as? View
+        if (navBar != null && navBar !== pagePractice) {
+            navBar.visibility = if (landscape && practiceVisible) View.GONE else View.VISIBLE
+        }
+
+        // 页面内边距
+        val pad = ((if (landscape) 6 else 16) * density).toInt()
+        pagePractice.setPadding(pad, pad, pad, pad)
+
+        // 释义框高度
+        if (::dictHintScroll.isInitialized) {
+            val dictH = ((if (landscape) 26 else 56) * density).toInt()
+            dictHintScroll.layoutParams?.let {
+                it.height = dictH
+                dictHintScroll.layoutParams = it
+            }
+        }
+
+        // 统计数字与标题字号
+        val statSize = if (landscape) 12f else 18f
+        if (::statTime.isInitialized) statTime.setTextSize(TypedValue.COMPLEX_UNIT_SP, statSize)
+        if (::statProgress.isInitialized) statProgress.setTextSize(TypedValue.COMPLEX_UNIT_SP, statSize)
+        if (::statSpeed.isInitialized) statSpeed.setTextSize(TypedValue.COMPLEX_UNIT_SP, statSize)
+        if (::statAcc.isInitialized) statAcc.setTextSize(TypedValue.COMPLEX_UNIT_SP, statSize)
+        if (::practicePageTitle.isInitialized) {
+            practicePageTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (landscape) 14f else 17f)
+        }
+
+        // 横屏隐藏底部操作按钮行（重开等），避免占用宝贵高度（加保护：绝不隐藏练习页本身）
+        val actionRow = findViewById<View>(R.id.btn_restart)?.parent as? View
+        if (actionRow != null && actionRow !== pagePractice) {
+            actionRow.visibility = if (landscape) View.GONE else View.VISIBLE
         }
     }
 
