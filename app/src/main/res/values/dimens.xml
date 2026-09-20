@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 练习页头部的尺寸（竖屏默认值） -->
+    <dimen name="practice_page_padding">16dp</dimen>
+    <dimen name="practice_header_margin">16dp</dimen>
+    <dimen name="practice_title_size">17sp</dimen>
+    <dimen name="practice_stats_margin">16dp</dimen>
+    <dimen name="practice_stat_padding">10dp</dimen>
+    <dimen name="practice_stat_value_size">18sp</dimen>
+    <dimen name="practice_dict_height">56dp</dimen>
+</resources>
