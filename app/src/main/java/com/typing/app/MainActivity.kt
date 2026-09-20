@@ -506,6 +506,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // 练习页任意空白处点击 -> 聚焦输入框，便于直接开始打字
+        pagePractice.setOnClickListener {
+            if (!isFinished && pagePractice.visibility == View.VISIBLE) {
+                focusInput()
+            }
+        }
+
         // 长按打字区：选中最近的汉字或英文单词，弹出查词 PopupWindow
         typingTextView.onCharLongPress = onCharLongPress@ { idx ->
             if (isFinished || pagePractice.visibility != View.VISIBLE) return@onCharLongPress false
@@ -1275,6 +1282,10 @@ class MainActivity : AppCompatActivity() {
         }
         if (!isFinished) {
             practiceHint.text = getString(R.string.inputting)
+        }
+        // 开始输入前（尚未输入任何字符）：确保第一行完整显示在可视区顶部
+        if (userInput.isEmpty()) {
+            typingScrollView.post { typingScrollView.scrollTo(0, 0) }
         }
     }
 
