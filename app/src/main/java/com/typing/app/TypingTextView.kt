@@ -188,7 +188,8 @@ class TypingTextView @JvmOverloads constructor(
         setMeasuredDimension(width, height)
     }
 
-    private fun totalRows(): Int {
+    // 供外部（自动滚动）查询内容总行数
+    fun totalRows(): Int {
         if (originalText.isEmpty()) return 1
         return if (isEnglishContent) layoutRows
         else ceil(originalText.length.toFloat() / CHARS_PER_ROW).toInt().coerceAtLeast(1)
