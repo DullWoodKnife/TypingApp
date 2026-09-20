@@ -123,17 +123,6 @@
                 android:padding="16dp"
                 android:visibility="gone">
 
-                <ScrollView
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    android:fillViewport="true">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
                         <!-- Header -->
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -343,6 +332,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_weight="1"
+                    android:fillViewport="true"
                     android:background="@android:color/transparent"
                     android:layout_marginBottom="8dp">
 
@@ -387,9 +377,6 @@
                         android:textColor="@color/text_secondary"
                         android:layout_marginStart="0dp" />
                 </LinearLayout>
-
-                    </LinearLayout>
-                </ScrollView>
 
                 <!-- Hidden input for keyboard (outside ScrollView to prevent auto-scroll on keyboard show) -->
                 <EditText
