@@ -864,7 +864,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // 在"正在输入…"同行最右侧，显示光标**右侧**汉字的86版五笔拆字（完整码,简码）。
-    // 光标位于 userInput.length 处，其右侧待输入的汉字下标为 userInput.length。
+    // 光标所对应的正文下标由 currentHintIndex 计算（按非空白字符对齐）。
     private fun updateWubiHint(text: String) {
         val idx = currentHintIndex(text)
         val code = if (idx >= 0 && idx < text.length) getWubiCode(text[idx]) else ""
@@ -874,13 +874,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     // 计算光标右侧待输入汉字的字符下标（即下一个要打的字）。
-    // userInput 为空时光标在 0，右侧字为 text[0]；输入若干字后光标在 userInput.length，
-    // 右侧待写字为 text[userInput.length]。
+    // 关键：输入与正文按“非空白字符”一一对齐（与 TypingTextView 的 visibleIndices 一致），
+    // 因此“已输入字数”应是 userInput 中非空白字符的数量，正文下标也要跳过空白字符，
+    // 否则遇到空格/换行（如歇后语内容）后下标会错位，导致五笔编码与光标处汉字不一致。
     private fun currentHintIndex(text: String): Int {
-        return when {
-            isFinished -> -1
-            else -> userInput.length.coerceAtMost(text.length - 1)
+        if (isFinished) return -1
+        val typed = userInput.count { !it.isWhitespace() }
+        var seen = 0
+        for (i in text.indices) {
+            if (text[i].isWhitespace()) continue
+            if (seen == typed) return i
+            seen++
         }
+        return text.length - 1
     }
 
     // 更新五笔码 + 拼音/音标释义区。成语关卡自动显示光标所在成语的拼音和释义。
@@ -904,7 +910,7 @@ class MainActivity : AppCompatActivity() {
 
     // 成语练习：根据光标位置找到当前成语，在 dictHint 显示拼音和释义
     private fun updateChengyuHint(text: String) {
-        val idx = userInput.length.coerceAtMost(text.length - 1)
+        val idx = currentHintIndex(text)
         if (idx < 0) {
             dictHint.text = ""
             return
@@ -1223,17 +1229,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun autoScrollToCurrent() {
-        val inputLen = userInput.length
         val content = getContent(currentContentId) ?: return
         val text = content.getString("content")
-        if (inputLen >= text.length) return
+        if (isFinished) return
+
+        // 光标对应的正文下标（按非空白字符对齐，与光标/五笔编码一致）
+        val caretIdx = currentHintIndex(text)
+        if (caretIdx < 0) return
 
         val rowHeight = typingTextView.rowHeight
         val scrollViewHeight = typingScrollView.height
         if (rowHeight <= 0f || scrollViewHeight <= 0) return
 
         // 光标所在行：中文按 17 字网格，英文按实际排版行（每行字符数不固定）
-        val currentRow = typingTextView.rowOfIndex(inputLen)
+        val currentRow = typingTextView.rowOfIndex(caretIdx)
         // 每个“行”内包含“原文行 + 输入行”，故以整行高度为边界，保证两者都完整可见
         val rowTop = (typingTextView.topPadding + currentRow * rowHeight).toInt()
         val rowBottom = (rowTop + rowHeight).toInt()
