@@ -188,11 +188,12 @@ class TypingTextView @JvmOverloads constructor(
         setMeasuredDimension(width, height)
     }
 
-    // 供外部（自动滚动）查询内容总行数
+    // 供外部（自动滚动）查询内容总行数。
+    // 必须返回实际排版行数 layoutRows：中文因空格按 0.3 宽度排版，一行的字符数可能大于 17，
+    // 若仍用 ceil(n/17) 会高估总行数，导致内容高度偏大、底部留白，且最后一行滚不到可视区。
     fun totalRows(): Int {
         if (originalText.isEmpty()) return 1
-        return if (isEnglishContent) layoutRows
-        else ceil(originalText.length.toFloat() / CHARS_PER_ROW).toInt().coerceAtLeast(1)
+        return layoutRows.coerceAtLeast(1)
     }
 
     // 计算每个字符的 x 坐标与行号，并汇总每行的起止下标与右边界
@@ -298,11 +299,15 @@ class TypingTextView @JvmOverloads constructor(
         }
     }
 
-    // 供外部（自动滚动）查询某个字符下标所在的行
+    // 供外部（自动滚动）查询某个字符下标所在的行。
+    // 统一返回真实排版行 charRows[i]（与光标绘制所用行号一致），
+    // 否则中文（空格使每行字符数不等）用 i/17 会与实际行不符，导致自动滚动定位到错误的行。
     fun rowOfIndex(index: Int): Int {
         if (index <= 0) return 0
-        val i = index.coerceAtMost((originalText.length - 1).coerceAtLeast(0))
-        return if (isEnglishContent && i < charRows.size) charRows[i] else i / CHARS_PER_ROW
+        val n = originalText.length
+        if (n == 0) return 0
+        val i = index.coerceIn(0, n - 1)
+        return if (i < charRows.size) charRows[i] else i / CHARS_PER_ROW
     }
 
     // 暴露触点 x/y
