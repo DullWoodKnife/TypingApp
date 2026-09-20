@@ -1221,18 +1221,36 @@ class MainActivity : AppCompatActivity() {
         val text = content.getString("content")
         if (inputLen >= text.length) return
 
+        val rowHeight = typingTextView.rowHeight
+        val scrollViewHeight = typingScrollView.height
+        if (rowHeight <= 0f || scrollViewHeight <= 0) return
+
         // 光标所在行：中文按 17 字网格，英文按实际排版行（每行字符数不固定）
         val currentRow = typingTextView.rowOfIndex(inputLen)
-        val y = (currentRow * typingTextView.rowHeight).toInt()
+        // 每个“行”内包含“原文行 + 输入行”，故以整行高度为边界，保证两者都完整可见
+        val rowTop = (typingTextView.topPadding + currentRow * rowHeight).toInt()
+        val rowBottom = (rowTop + rowHeight).toInt()
 
-        val scrollViewHeight = typingScrollView.height
+        // 内容总高度，用于夹取滚动目标，避免滚出底部空白
+        val contentHeight = (typingTextView.topPadding + typingTextView.totalRows() * rowHeight).toInt()
+        val maxScroll = (contentHeight - scrollViewHeight).coerceAtLeast(0)
+
         val scrollY = typingScrollView.scrollY
+        val viewportBottom = scrollY + scrollViewHeight
+        val margin = (rowHeight * 0.25f).toInt()
 
-        // If the current row is below the visible area, scroll down
-        if (y > scrollY + scrollViewHeight * 0.6) {
-            typingScrollView.smoothScrollTo(0, y - scrollViewHeight / 3)
-        } else if (y < scrollY) {
-            typingScrollView.smoothScrollTo(0, y)
+        when {
+            // 当前行底部超出可视区：向下滚动，使整行（含输入行）完整显示在底部之上
+            rowBottom + margin > viewportBottom -> {
+                val target = (rowBottom + margin - scrollViewHeight).coerceIn(0, maxScroll)
+                if (target != scrollY) typingScrollView.smoothScrollTo(0, target)
+            }
+            // 当前行顶部被上边缘遮挡：向上滚动，使整行完整显示
+            rowTop - margin < scrollY -> {
+                val target = (rowTop - margin).coerceIn(0, maxScroll)
+                if (target != scrollY) typingScrollView.smoothScrollTo(0, target)
+            }
+            // 否则：当前行已完整可见，保持用户当前滚动位置
         }
     }
 
