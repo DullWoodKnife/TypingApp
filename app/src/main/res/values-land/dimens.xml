@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 横屏下压缩练习页头部，避免顶部区域过高遮挡下方练习内容 -->
+    <dimen name="practice_page_padding">8dp</dimen>
+    <dimen name="practice_header_margin">6dp</dimen>
+    <dimen name="practice_title_size">14sp</dimen>
+    <dimen name="practice_stats_margin">6dp</dimen>
+    <dimen name="practice_stat_padding">4dp</dimen>
+    <dimen name="practice_stat_value_size">14sp</dimen>
+    <dimen name="practice_dict_height">34dp</dimen>
+</resources>
