@@ -1241,7 +1241,7 @@ class MainActivity : AppCompatActivity() {
         val scrollViewHeight = typingScrollView.height
         if (rowHeight <= 0f || scrollViewHeight <= 0) return
 
-        // 光标所在行：中文按 17 字网格，英文按实际排版行（每行字符数不固定）
+        // 光标所在行：统一取真实排版行（与光标绘制行号一致，含空格换行造成的不等宽行）
         val currentRow = typingTextView.rowOfIndex(caretIdx)
         // 每个“行”内包含“原文行 + 输入行”，故以整行高度为边界，保证两者都完整可见
         val rowTop = (typingTextView.topPadding + currentRow * rowHeight).toInt()
