@@ -58,6 +58,9 @@ class TypingTextView @JvmOverloads constructor(
     var charWidth: Float = 0f
     var topPadding: Float = 0f
 
+    // 单字最大字号（sp）：横屏下控件宽度很大，据此限制每行高度，避免行高过高
+    private val MAX_TEXT_SIZE_SP = 20f
+
     // 长按触点坐标（ACTION_DOWN 时记录，供宿主在长按回调里查询字符下标）
     private var downX = 0f
     private var downY = 0f
@@ -159,7 +162,10 @@ class TypingTextView @JvmOverloads constructor(
         val width = MeasureSpec.getSize(widthMeasureSpec)
 
         if (needsLayout || lastWidth != width || charWidth == 0f) {
-            textPaint.textSize = width / (CHARS_PER_ROW + 1f)
+            // 横屏时控件宽度很大，若 textSize 完全按宽度计算，会导致每行字符过大、行高过高。
+            // 对字号设上限，使每行高度在横竖屏下都保持合理（竖屏通常已小于该上限，不受影响）。
+            val maxTextSize = MAX_TEXT_SIZE_SP * resources.displayMetrics.scaledDensity
+            textPaint.textSize = minOf(width / (CHARS_PER_ROW + 1f), maxTextSize)
             charWidth = textPaint.measureText("测")
             val fm = textPaint.fontMetrics
 
