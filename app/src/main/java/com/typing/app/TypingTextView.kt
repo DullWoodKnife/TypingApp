@@ -1,6 +1,7 @@
 package com.typing.app
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -178,7 +179,12 @@ class TypingTextView @JvmOverloads constructor(
             val textH = fm.descent - fm.ascent
             rowHeight = textH * 3.5f
             topPadding = -fm.ascent
-            gridPadding = (width - charWidth * CHARS_PER_ROW) / 2f
+            // 竖屏：整行水平居中；横屏：左对齐（左侧留半个字宽），避免内容被推到屏幕中间
+            gridPadding = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                charWidth * 0.5f
+            } else {
+                (width - charWidth * CHARS_PER_ROW) / 2f
+            }
             lastWidth = width
             computeLayout(width.toFloat())
             needsLayout = false
@@ -585,20 +591,17 @@ class TypingTextView @JvmOverloads constructor(
             // === User input at 55% of row ===
             // userInput 按 visibleIndices 对齐：跳过双方空格，将输入字符与 originalText 的非空白字符一一对应
             val inputBaseline = rowTop + rowHeight * 0.55f
-            if (userInput.isNotEmpty() && visibleIndices.isNotEmpty()) {
+            if (userInput.isNotEmpty()) {
                 textPaint.color = colorInputText
-                // 同步跳过本行之前的所有内容
-                while (vi < visibleIndices.size && visibleIndices[vi] < rowStart && ui < userInput.length) {
-                    if (!userInput[ui].isWhitespace()) vi++
-                    ui++
+                // 输入与正文按“位置”一一对应（不再跳过空格分隔符）：userInput[i] 画在 charXs[i]
+                val to = minOf(userInput.length, rowEnd)
+                for (k in rowStart until to) {
+                    if (k !in charXs.indices) break
+                    val ch = userInput[k]
+                    if (ch == ' ') continue
+                    canvas.drawText(ch.toString(), charXs[k], inputBaseline, textPaint)
                 }
-                // 画本行范围内的
-                while (ui < userInput.length && vi < visibleIndices.size && visibleIndices[vi] < rowEnd) {
-                    if (userInput[ui].isWhitespace()) { ui++; continue }
-                    val origIdx = visibleIndices[vi]
-                    canvas.drawText(userInput[ui].toString(), charXs[origIdx], inputBaseline, textPaint)
-                    ui++; vi++
-                }
+                ui = to
             }
 
             // === Separator line (right below input text descent) ===
@@ -617,21 +620,14 @@ class TypingTextView @JvmOverloads constructor(
         }
 
         // === Blue cursor on user input line ===
-        if (cursorVisible && visibleIndices.isNotEmpty()) {
-            // 统计 userInput 中已输入的非空格字符数，以此定位光标
-            var matchedVisCount = 0
-            var ui = 0
-            var vi = 0
-            while (ui < userInput.length && vi < visibleIndices.size) {
-                if (userInput[ui].isWhitespace()) { ui++; continue }
-                matchedVisCount++; ui++; vi++
-            }
-            val (row, cursorX) = if (matchedVisCount < visibleIndices.size) {
-                val idx = visibleIndices[matchedVisCount]
-                charRows[idx] to charXs[idx]
+        if (cursorVisible && originalText.isNotEmpty()) {
+            // 输入与正文按“位置”一一对应（不跳过空格），光标位于 userInput.length 对应的正文位置
+            val pos = userInput.length.coerceAtMost(originalText.length)
+            val (row, cursorX) = if (pos < originalText.length) {
+                charRows[pos] to charXs[pos]
             } else {
                 // 已输完：光标停在最后一个字符右侧
-                val idx = visibleIndices.last()
+                val idx = originalText.length - 1
                 val cw = if (isEnglishContent) textPaint.measureText(originalText[idx].toString()) else charWidth
                 charRows[idx] to (charXs[idx] + cw)
             }
@@ -655,24 +651,10 @@ class TypingTextView @JvmOverloads constructor(
         if (index >= originalText.length) return colorPending
         val c = originalText[index]
         if (c.isWhitespace()) return colorPending
-        // 如果用户还没输入任何内容，所有非空格字符都显示为 pending
-        if (userInput.isEmpty()) return colorPending
-        // 统计 originalText[0..index] 中的非空格字符数
-        var origVis = 0
-        for (i in 0..index) {
-            if (!originalText[i].isWhitespace()) origVis++
-        }
-        // 在 userInput 中找到第 origVis 个非空格字符的位置
-        var ui = 0
-        var uiVis = 0
-        while (ui < userInput.length && uiVis < origVis) {
-            if (!userInput[ui].isWhitespace()) uiVis++
-            ui++
-        }
-        // 如果 userInput 的非空格字符数不足以覆盖到当前位置，显示 pending（黑色）
-        if (uiVis < origVis) return colorPending
-        // 此时 ui-1 就是对应的 userInput 字符
-        val match = ui > 0 && !userInput[ui - 1].isWhitespace() && userInput[ui - 1] == c
-        return if (match) colorCorrect else colorWrong
+        // 输入与正文按“位置”一一对应（不再跳过空格分隔符）：userInput[index] 对应 originalText[index]。
+        // 若尚未输入到该位置，保持未输入颜色。
+        if (index >= userInput.length) return colorPending
+        val got = userInput[index]
+        return if (got == c) colorCorrect else colorWrong
     }
 }
