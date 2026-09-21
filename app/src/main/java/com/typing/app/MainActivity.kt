@@ -38,6 +38,8 @@ import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.appcompat.app.AlertDialog
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -106,6 +108,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var dictHint: TextView
     private lateinit var dictHintScroll: ScrollView
     private lateinit var practicePageTitle: TextView
+    private lateinit var practiceHeader: View
+    private lateinit var practiceStats: View
+    private lateinit var practiceHintRow: View
+    private lateinit var statTimeLabel: TextView
+    private lateinit var statProgressLabel: TextView
+    private lateinit var statSpeedLabel: TextView
+    private lateinit var statAccLabel: TextView
+    // 软键盘（IME）当前是否可见：横屏下据此进一步压缩顶部区域
+    private var imeVisible = false
     private var wubiTable: HashMap<String, String>? = null
     private var hanziDict: HashMap<String, HanziEntry>? = null
     private var enZhDict: HashMap<String, String>? = null
@@ -233,6 +244,7 @@ class MainActivity : AppCompatActivity() {
         loadData()
         bindViews()
         setupListeners()
+        setupImeInsetsListener()
         initSounds()
         // 后台预加载内置词典，避免练习中首次查询卡顿
         CoroutineScope(Dispatchers.IO).launch {
@@ -313,6 +325,13 @@ class MainActivity : AppCompatActivity() {
         statAcc = findViewById(R.id.stat_acc)
         practiceHint = findViewById(R.id.practice_hint)
         practicePageTitle = findViewById(R.id.practice_page_title)
+        practiceHeader = findViewById(R.id.practice_header)
+        practiceStats = findViewById(R.id.practice_stats)
+        practiceHintRow = findViewById(R.id.practice_hint_row)
+        statTimeLabel = findViewById(R.id.stat_time_label)
+        statProgressLabel = findViewById(R.id.stat_progress_label)
+        statSpeedLabel = findViewById(R.id.stat_speed_label)
+        statAccLabel = findViewById(R.id.stat_acc_label)
         wubiHint = findViewById(R.id.wubi_hint)
         dictHint = findViewById(R.id.dict_hint)
         dictHintScroll = findViewById(R.id.dict_hint_scroll)
@@ -2576,13 +2595,32 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // 按屏幕方向调整练习页：横屏空间有限，压缩顶部区域并隐藏底部导航栏，
-    // 保证“练习内容 + 输入行 + 横线”有足够高度显示与输入；竖屏恢复默认。
+    // 监听软键盘（IME）显隐：横屏下键盘弹出时立刻把顶部区域压到最小，
+    // 保证“练习内容 + 输入行 + 横线”不被键盘遮挡。返回未消费的 insets，保持 adjustResize 行为。
+    private fun setupImeInsetsListener() {
+        val root = findViewById<View>(android.R.id.content) ?: return
+        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            val nav = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val visible = ime > nav + 1
+            if (visible != imeVisible) {
+                imeVisible = visible
+                applyOrientationLayout()
+            }
+            insets
+        }
+        ViewCompat.requestApplyInsets(root)
+    }
+
+    private fun dpToPx(v: Float): Int = (v * resources.displayMetrics.density).toInt()
+
+    // 按屏幕方向调整练习页：横屏空间有限，压缩顶部区域并隐藏底部导航栏。
+    // 横屏 + 键盘弹出时（compact）进一步压缩标题/统计/提示/释义框，让练习区不被键盘遮挡；竖屏恢复默认。
     private fun applyOrientationLayout() {
         if (!::pagePractice.isInitialized || !::navChallenge.isInitialized) return
         val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        val density = resources.displayMetrics.density
         val practiceVisible = pagePractice.visibility == View.VISIBLE
+        val compact = landscape && imeVisible
 
         // 仅“练习页 + 横屏”时隐藏底部导航栏，为内容腾出高度（加保护：绝不隐藏练习页本身）
         val navBar = navChallenge.parent as? View
@@ -2591,27 +2629,64 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 页面内边距
-        val pad = ((if (landscape) 6 else 16) * density).toInt()
+        val pad = dpToPx(if (compact) 4f else if (landscape) 8f else 16f)
         pagePractice.setPadding(pad, pad, pad, pad)
+
+        // 顶部区块的外边距：标题行 / 统计行 / 提示行
+        fun setBottomMargin(view: View, dpVal: Float) {
+            (view.layoutParams as? ViewGroup.MarginLayoutParams)?.let {
+                it.bottomMargin = dpToPx(dpVal)
+                view.layoutParams = it
+            }
+        }
+        if (::practiceHeader.isInitialized) {
+            setBottomMargin(practiceHeader, if (compact) 2f else if (landscape) 4f else 16f)
+        }
+        if (::practiceStats.isInitialized) {
+            setBottomMargin(practiceStats, if (compact) 2f else if (landscape) 4f else 16f)
+        }
+        if (::practiceHintRow.isInitialized) {
+            setBottomMargin(practiceHintRow, if (compact) 2f else if (landscape) 4f else 8f)
+        }
+
+        // 统计卡片内边距（4 张卡片都是 practiceStats 的子 View）
+        if (::practiceStats.isInitialized && practiceStats is ViewGroup) {
+            val statPad = dpToPx(if (compact) 1f else if (landscape) 3f else 10f)
+            val g = practiceStats as ViewGroup
+            for (i in 0 until g.childCount) {
+                g.getChildAt(i).setPadding(statPad, statPad, statPad, statPad)
+            }
+        }
 
         // 释义框高度
         if (::dictHintScroll.isInitialized) {
-            val dictH = ((if (landscape) 26 else 56) * density).toInt()
+            val dictH = dpToPx(if (compact) 20f else if (landscape) 26f else 56f)
             dictHintScroll.layoutParams?.let {
                 it.height = dictH
                 dictHintScroll.layoutParams = it
             }
         }
 
-        // 统计数字与标题字号
-        val statSize = if (landscape) 12f else 18f
+        // 统计数字 / 统计标签 / 标题字号
+        val statSize = if (compact) 11f else if (landscape) 13f else 18f
+        val labelSize = if (compact) 9f else if (landscape) 10f else 11f
         if (::statTime.isInitialized) statTime.setTextSize(TypedValue.COMPLEX_UNIT_SP, statSize)
         if (::statProgress.isInitialized) statProgress.setTextSize(TypedValue.COMPLEX_UNIT_SP, statSize)
         if (::statSpeed.isInitialized) statSpeed.setTextSize(TypedValue.COMPLEX_UNIT_SP, statSize)
         if (::statAcc.isInitialized) statAcc.setTextSize(TypedValue.COMPLEX_UNIT_SP, statSize)
+        if (::statTimeLabel.isInitialized) statTimeLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, labelSize)
+        if (::statProgressLabel.isInitialized) statProgressLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, labelSize)
+        if (::statSpeedLabel.isInitialized) statSpeedLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, labelSize)
+        if (::statAccLabel.isInitialized) statAccLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, labelSize)
         if (::practicePageTitle.isInitialized) {
-            practicePageTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (landscape) 14f else 17f)
+            practicePageTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (compact) 12f else if (landscape) 14f else 17f)
         }
+
+        // 提示行（正在输入… / 五笔拆字）与释义字号
+        val hintSize = if (compact) 9f else if (landscape) 11f else 12f
+        if (::practiceHint.isInitialized) practiceHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, hintSize)
+        if (::wubiHint.isInitialized) wubiHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, hintSize)
+        if (::dictHint.isInitialized) dictHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, hintSize)
 
         // 横屏隐藏底部操作按钮行（重开等），避免占用宝贵高度（加保护：绝不隐藏练习页本身）
         val actionRow = findViewById<View>(R.id.btn_restart)?.parent as? View
