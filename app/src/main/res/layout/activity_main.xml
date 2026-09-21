@@ -129,6 +129,7 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
+                    android:id="@+id/practice_header"
                     android:layout_marginBottom="@dimen/practice_header_margin">
 
                     <TextView
@@ -160,6 +161,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
+                    android:id="@+id/practice_stats"
                     android:layout_marginBottom="@dimen/practice_stats_margin">
 
                     <LinearLayout
@@ -184,6 +186,8 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:id="@+id/stat_time_label"
+
                             android:text="@string/stat_time"
                             android:textSize="11sp"
                             android:textColor="@color/text_secondary" />
@@ -212,6 +216,8 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:id="@+id/stat_progress_label"
+
                             android:text="@string/stat_progress"
                             android:textSize="11sp"
                             android:textColor="@color/text_secondary" />
@@ -240,6 +246,8 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:id="@+id/stat_speed_label"
+
                             android:text="@string/stat_speed"
                             android:textSize="11sp"
                             android:textColor="@color/text_secondary" />
@@ -267,6 +275,8 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:id="@+id/stat_acc_label"
+
                             android:text="@string/stat_accuracy"
                             android:textSize="11sp"
                             android:textColor="@color/text_secondary" />
@@ -275,6 +285,7 @@
 
                 <!-- Hint + Wubi86 拆字提示（右侧） -->
                 <LinearLayout
+                    android:id="@+id/practice_hint_row"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
