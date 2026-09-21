@@ -882,14 +882,9 @@ class MainActivity : AppCompatActivity() {
     // 否则遇到空格/换行（如歇后语内容）后下标会错位，导致五笔编码与光标处汉字不一致。
     private fun currentHintIndex(text: String): Int {
         if (isFinished) return -1
-        val typed = userInput.count { !it.isWhitespace() }
-        var seen = 0
-        for (i in text.indices) {
-            if (text[i].isWhitespace()) continue
-            if (seen == typed) return i
-            seen++
-        }
-        return text.length - 1
+        // 输入与正文按“位置”一一对应（含空格分隔符，不再跳过），
+        // 光标右侧待输入字即 text[userInput.length]，这样五笔编码/拼音与光标处汉字一致。
+        return userInput.length.coerceAtMost((text.length - 1).coerceAtLeast(0))
     }
 
     // 更新五笔码 + 拼音/音标释义区。成语关卡自动显示光标所在成语的拼音和释义。
@@ -1335,11 +1330,13 @@ class MainActivity : AppCompatActivity() {
             for (idx in lcp until end) {
                 val expectC = originalText[idx]
                 val gotC = userInput[idx]
-                if (isHanziChar(expectC) && gotC.isAsciiLetter()) {
-                    // IME 组合中的字母：不播任何音效
+                // IME（拼音/五笔）组合过程中会先出现字母：目标不是字母时视为组合过程，不播音效
+                if (gotC.isAsciiLetter() && !expectC.isAsciiLetter()) {
                     continue
                 }
-                playKeySound(gotC == expectC)
+                // 空格分隔符按“任意空白”匹配（IME 打出的空格与正文窄空格不同），避免误报错误音
+                val match = if (expectC.isWhitespace()) gotC.isWhitespace() else gotC == expectC
+                playKeySound(match)
             }
         }
 
@@ -1398,7 +1395,10 @@ class MainActivity : AppCompatActivity() {
         var wrong = 0
         for (i in userInput.indices) {
             if (i < text.length) {
-                if (userInput[i] == text[i]) correct++ else wrong++
+                val expectC = text[i]
+                val gotC = userInput[i]
+                val match = if (expectC.isWhitespace()) gotC.isWhitespace() else gotC == expectC
+                if (match) correct++ else wrong++
             }
         }
         return intArrayOf(correct, wrong)
