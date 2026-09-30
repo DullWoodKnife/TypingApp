@@ -1398,6 +1398,10 @@ class MainActivity : AppCompatActivity() {
                         val level = currentContentId.removePrefix("wubi_chengyu_").toIntOrNull()
                         if (level != null) incrementWubiLevelDone("wubi_chengyu_done", level)
                     }
+                    currentContentId.startsWith("wubi_phrase_") -> {
+                        val level = currentContentId.removePrefix("wubi_phrase_").toIntOrNull()
+                        if (level != null) incrementWubiLevelDone("wubi_phrase_done", level)
+                    }
                 }
             }
 
@@ -1713,6 +1717,18 @@ class MainActivity : AppCompatActivity() {
                 val obj = JSONObject()
                 obj.put("id", id)
                 obj.put("title", "成语·第${level}关")
+                obj.put("content", text)
+                return obj
+            }
+        }
+        if (id.startsWith("wubi_phrase_")) {
+            val level = id.removePrefix("wubi_phrase_").toIntOrNull() ?: return null
+            ensurePhraseLevelsLoaded()
+            if (level in 1..wubiPhraseLevels.size) {
+                val text = wubiPhraseLevels.getOrNull(level - 1) ?: return null
+                val obj = JSONObject()
+                obj.put("id", id)
+                obj.put("title", "词组·第${level}关")
                 obj.put("content", text)
                 return obj
             }
