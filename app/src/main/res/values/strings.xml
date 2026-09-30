@@ -81,6 +81,7 @@
     <string name="wubi_level_desc_single">每关 450 字 · 五笔打字专项</string>
     <string name="wubi_level_desc_xiehouyu">每关约 280 条歇后语 · 五笔打字专项</string>
     <string name="wubi_level_desc_chengyu">每关约 570 条成语 · 五笔打字专项</string>
+    <string name="wubi_level_desc_phrase">每关 493 条词组 · 五笔打字专项</string>
     <string name="wubi_coming_soon">该分类暂未开放，敬请期待</string>
 
     <!-- 自定义文章 -->

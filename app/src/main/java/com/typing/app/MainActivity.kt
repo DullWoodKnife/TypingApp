@@ -199,11 +199,13 @@ class MainActivity : AppCompatActivity() {
     private val wubiSingleLevels: MutableList<String> = mutableListOf()
     private val wubiXiehouyuLevels: MutableList<String> = mutableListOf()
     private val wubiChengyuLevels: MutableList<String> = mutableListOf()
+    private val wubiPhraseLevels: MutableList<String> = mutableListOf()
     private var chengyuDict: HashMap<String, JSONObject>? = null
     private val WUBI_SINGLE_LEVELS = 19
     private val XIEHOUYU_LEVELS = 50
     private val CHENGYU_LEVELS = 50
-    private var wubiCategory = "single" // "single" | "xiehouyu" | "chengyu"
+    private val PHRASE_LEVELS = 60
+    private var wubiCategory = "single" // "single" | "xiehouyu" | "chengyu" | "phrase"
     // 五笔关卡练习模式标记：控制练习页右上角按钮文案、底部"重新开始/返回首页"是否显示
     private var isWubiPractice = false
     // 练习页右上角"返回"要返回到的页面：wubiLevels 或 customArticles
@@ -449,7 +451,10 @@ class MainActivity : AppCompatActivity() {
 
         // 五笔专项：分类 -> 词组 / 成语 / 自定义文章（占位提示）
         findViewById<Button>(R.id.btn_wubi_cat_phrase).setOnClickListener {
-            showModal(getString(R.string.wubi_special_title), getString(R.string.wubi_coming_soon))
+            ensurePhraseLevelsLoaded()
+            wubiCategory = "phrase"
+            showPage("wubiLevels")
+            renderWubiLevels()
         }
         findViewById<Button>(R.id.btn_wubi_cat_idiom).setOnClickListener {
             ensureChengyuLevelsLoaded()
@@ -1192,6 +1197,7 @@ class MainActivity : AppCompatActivity() {
                 "single" -> "单字"
                 "chengyu" -> "成语"
                 "xiehouyu" -> "歇后语"
+                "phrase" -> "词组"
                 else -> "单字"
             }
             practicePageTitle.text = "${categoryName}-第${levelNum}关-练习模式"
@@ -2131,6 +2137,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun ensurePhraseLevelsLoaded() {
+        if (wubiPhraseLevels.isNotEmpty()) return
+        try {
+            assets.open("phrase_levels.json").bufferedReader().use { reader ->
+                val json = org.json.JSONObject(reader.readText())
+                val levels = json.getJSONArray("levels")
+                wubiPhraseLevels.clear()
+                for (i in 0 until levels.length()) {
+                    val levelObj = levels.getJSONObject(i)
+                    val content = levelObj.getString("content")
+                    // 将普通空格替换为窄空格，缩小词组间距
+                    wubiPhraseLevels.add(content.replace(" ", "\u2009"))
+                }
+            }
+        } catch (e: Exception) {
+            wubiPhraseLevels.clear()
+            e.printStackTrace()
+        }
+    }
+
     private fun loadChengyuDict(): HashMap<String, JSONObject> {
         val map = HashMap<String, JSONObject>()
         try {
@@ -2163,6 +2189,13 @@ class MainActivity : AppCompatActivity() {
                 doneKey = "wubi_chengyu_done"
                 wubiLevelsTitle.text = getString(R.string.wubi_levels_title)
                 wubiLevelsDesc.text = getString(R.string.wubi_level_desc_chengyu)
+            }
+            "phrase" -> {
+                ensurePhraseLevelsLoaded()
+                levels = wubiPhraseLevels.size
+                doneKey = "wubi_phrase_done"
+                wubiLevelsTitle.text = getString(R.string.wubi_levels_title)
+                wubiLevelsDesc.text = getString(R.string.wubi_level_desc_phrase)
             }
             else -> {
                 ensureWubiSingleLevelsLoaded()
@@ -2209,6 +2242,11 @@ class MainActivity : AppCompatActivity() {
                 ensureChengyuLevelsLoaded()
                 if (level < 1 || level > wubiChengyuLevels.size) return
                 wubiChengyuLevels.getOrNull(level - 1) ?: return
+            }
+            "phrase" -> {
+                ensurePhraseLevelsLoaded()
+                if (level < 1 || level > wubiPhraseLevels.size) return
+                wubiPhraseLevels.getOrNull(level - 1) ?: return
             }
             else -> {
                 ensureWubiSingleLevelsLoaded()
