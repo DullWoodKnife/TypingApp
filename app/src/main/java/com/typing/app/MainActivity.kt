@@ -60,6 +60,8 @@ class MainActivity : AppCompatActivity() {
     // Data
     private var appData = JSONObject()
     private var currentContentId = ""
+    // 普通/限时练习上次选择的内容 id（与五笔专项互不影响，退出专项后回到该内容）
+    private var normalContentId = ""
     private var practiceMode = "normal"
     private var userInput = ""
     private var isRunning = false
@@ -272,11 +274,21 @@ class MainActivity : AppCompatActivity() {
         if (contents != null && contents.length() > 0) {
             currentContentId = contents.getJSONObject(0).getString("id")
         }
+        // 恢复上次普通练习选择的内容（独立于五笔专项）
+        val savedNormal = prefs.getString("normal_content_id", null)
+        if (savedNormal != null && getContent(savedNormal) != null) {
+            normalContentId = savedNormal
+        } else if (contents != null && contents.length() > 0) {
+            normalContentId = contents.getJSONObject(0).getString("id")
+        }
     }
 
     private fun saveData() {
         val prefs = getSharedPreferences("typing_app_data", Context.MODE_PRIVATE)
-        prefs.edit().putString("data", appData.toString()).apply()
+        prefs.edit()
+            .putString("data", appData.toString())
+            .putString("normal_content_id", normalContentId)
+            .apply()
     }
 
     private fun defaultData(): JSONObject {
@@ -408,6 +420,8 @@ class MainActivity : AppCompatActivity() {
                 showModal(getString(R.string.title_cannot_empty), getString(R.string.msg_add_content_first))
                 return@setOnClickListener
             }
+            // 恢复到普通练习上次选择的内容，避免沿用五笔专项留下的内容状态
+            currentContentId = resolveNormalContentId()
             showPage("practice")
             initPractice()
         }
@@ -419,6 +433,8 @@ class MainActivity : AppCompatActivity() {
                 showModal(getString(R.string.title_cannot_empty), getString(R.string.msg_add_content_first))
                 return@setOnClickListener
             }
+            // 恢复到普通练习上次选择的内容，避免沿用五笔专项留下的内容状态
+            currentContentId = resolveNormalContentId()
             showPage("practice")
             initPractice()
         }
@@ -1220,7 +1236,8 @@ class MainActivity : AppCompatActivity() {
         updateHints(text)
         startCursorBlink()
 
-        // 蓝牙/物理键盘已连接：进入练习页自动聚焦，无需点屏幕即可直接打字
+        // 蓝牙/物理键盘已连接：禁止软键盘弹出（避免输入法候选栏占用练习区）并自动聚焦，进入练习页无需点屏幕即可直接打字
+        applyKeyboardMode()
         if (hasHardKeyboard()) {
             hiddenInput.requestFocus()
         }
@@ -1304,6 +1321,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun focusInput() {
+        hiddenInput.showSoftInputOnFocus = !hasHardKeyboard()
         hiddenInput.requestFocus()
         if (hasHardKeyboard()) {
             // 蓝牙/物理键盘已连接：不弹软键盘，保持全屏干净，直接物理按键输入
@@ -1417,6 +1435,15 @@ class MainActivity : AppCompatActivity() {
     private fun hideKeyboard() {
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         imm.hideSoftInputFromWindow(hiddenInput.windowToken, 0)
+    }
+
+    // 外接（蓝牙/物理）键盘适配：已连接硬件键盘时禁止软键盘弹出，避免输入法候选栏占用练习区，
+    // 让练习内容获得完整空间；未连接时恢复软键盘输入。
+    private fun applyKeyboardMode() {
+        if (!::hiddenInput.isInitialized) return
+        val hard = hasHardKeyboard()
+        hiddenInput.showSoftInputOnFocus = !hard
+        if (hard) hideKeyboard()
     }
 
     private fun recalcStats(text: String): IntArray {
@@ -2415,9 +2442,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun selectContentForPractice(id: String) {
         currentContentId = id
+        normalContentId = id
+        saveData()
         isWubiPractice = false
         showPage("practice")
         initPractice()
+    }
+
+    // 取普通/限时练习应使用的内容 id：优先上次选择，其次第一条，确保与五笔专项状态隔离
+    private fun resolveNormalContentId(): String {
+        if (normalContentId.isNotEmpty() && getContent(normalContentId) != null) return normalContentId
+        val contents = appData.optJSONArray("contents")
+        if (contents != null && contents.length() > 0) {
+            normalContentId = contents.getJSONObject(0).getString("id")
+            return normalContentId
+        }
+        return ""
     }
 
     private fun viewContent(id: String) {
@@ -2580,7 +2620,7 @@ class MainActivity : AppCompatActivity() {
             showModal(getString(R.string.title_cannot_empty), getString(R.string.msg_add_content_first))
             return
         }
-        currentContentId = contents.getJSONObject(0).getString("id")
+        currentContentId = resolveNormalContentId()
         showPage("practice")
         initPractice()
     }
@@ -2639,6 +2679,8 @@ class MainActivity : AppCompatActivity() {
         // 旋转屏幕后重新套用练习页布局（manifest 配置了 configChanges，旋转不会重建 Activity，
         // values-land 资源不会自动重新生效，必须在此手动应用，否则横屏下顶部过高会挤没练习内容）。
         applyOrientationLayout()
+        // 蓝牙键盘连接/断开时同步软键盘模式：连接时禁止软键盘弹出，断开时恢复
+        applyKeyboardMode()
         if (pagePractice.visibility == View.VISIBLE && !isFinished) {
             if (hasHardKeyboard()) {
                 hideKeyboard()
