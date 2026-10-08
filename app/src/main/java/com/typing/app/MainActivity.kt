@@ -523,6 +523,8 @@ class MainActivity : AppCompatActivity() {
                 stopTimer()
                 stopCursorBlink()
                 showPage(practiceReturnPage)
+                // 返回后重新渲染列表，刷新各关卡"已完成N次"（否则要重进专项才刷新）
+                refreshReturnPage()
             } else {
                 selectMode = true
                 showPage("contentList")
@@ -744,6 +746,15 @@ class MainActivity : AppCompatActivity() {
         applyOrientationLayout()
     }
 
+    // 返回列表页后重新渲染，刷新“已完成N次”等动态内容（否则需重进专项才刷新）
+    private fun refreshReturnPage() {
+        when (practiceReturnPage) {
+            "wubiLevels" -> renderWubiLevels()
+            "customArticles" -> renderCustomArticles()
+            "contentList" -> renderContentList()
+        }
+    }
+
     private fun updateNavActive(pageId: String) {
         val activeColor = Color.parseColor("#E65C53")
         val inactiveColor = Color.parseColor("#59000000")
@@ -922,9 +933,18 @@ class MainActivity : AppCompatActivity() {
     // 否则遇到空格/换行（如歇后语内容）后下标会错位，导致五笔编码与光标处汉字不一致。
     private fun currentHintIndex(text: String): Int {
         if (isFinished) return -1
-        // 输入与正文按“位置”一一对应（含空格分隔符，不再跳过），
-        // 光标右侧待输入字即 text[userInput.length]，这样五笔编码/拼音与光标处汉字一致。
-        return userInput.length.coerceAtMost((text.length - 1).coerceAtLeast(0))
+        // 输入与正文均按“非空白字符”一一对齐：正文中的空格/窄空格是排版分隔符，用户不会输入，
+        // 因此已输入字数取 userInput 中非空白字符数，再映射到 text 中第 n 个非空白字符的下标。
+        // 这样五笔编码始终指向光标右侧真正待输入的汉字，不会因光标落在分隔空格上而变空（竖屏偶发消失）。
+        var typed = 0
+        for (c in userInput) if (!c.isWhitespace()) typed++
+        var seen = 0
+        for (i in text.indices) {
+            if (text[i].isWhitespace()) continue
+            if (seen == typed) return i
+            seen++
+        }
+        return -1
     }
 
     // 更新五笔码 + 拼音/音标释义区。成语关卡自动显示光标所在成语的拼音和释义。
@@ -1366,20 +1386,21 @@ class MainActivity : AppCompatActivity() {
         // IME（拼音/五笔）commit 字母时会先替换已有字母（例如 nih → ni → nihao）。
         // 用 LCP（最长公共前缀）找到新旧文本真正不同的部分，仅对差异字符播放音效。
         if (originalText.isNotEmpty()) {
-            val minLen = minOf(prevInput.length, userInput.length)
+            // 键盘音效：输入与正文按“非空白字符”对齐（正文分隔空格用户不输入），避免错位误报
+            val prevVis = prevInput.filter { !it.isWhitespace() }
+            val curVis = userInput.filter { !it.isWhitespace() }
+            val origVis = originalText.filter { !it.isWhitespace() }
+            val minLen = minOf(prevVis.length, curVis.length)
             var lcp = 0
-            while (lcp < minLen && prevInput[lcp] == userInput[lcp]) lcp++
-            val end = minOf(userInput.length, originalText.length)
-            for (idx in lcp until end) {
-                val expectC = originalText[idx]
-                val gotC = userInput[idx]
+            while (lcp < minLen && prevVis[lcp] == curVis[lcp]) lcp++
+            for (r in lcp until curVis.length) {
+                val gotC = curVis[r]
+                val expectC = if (r < origVis.length) origVis[r] else null
                 // IME（拼音/五笔）组合过程中会先出现字母：目标不是字母时视为组合过程，不播音效
-                if (gotC.isAsciiLetter() && !expectC.isAsciiLetter()) {
+                if (gotC.isAsciiLetter() && (expectC == null || !expectC.isAsciiLetter())) {
                     continue
                 }
-                // 空格分隔符按“任意空白”匹配（IME 打出的空格与正文窄空格不同），避免误报错误音
-                val match = if (expectC.isWhitespace()) gotC.isWhitespace() else gotC == expectC
-                playKeySound(match)
+                playKeySound(expectC != null && gotC == expectC)
             }
         }
 
@@ -1449,13 +1470,14 @@ class MainActivity : AppCompatActivity() {
     private fun recalcStats(text: String): IntArray {
         var correct = 0
         var wrong = 0
-        for (i in userInput.indices) {
-            if (i < text.length) {
-                val expectC = text[i]
-                val gotC = userInput[i]
-                val match = if (expectC.isWhitespace()) gotC.isWhitespace() else gotC == expectC
-                if (match) correct++ else wrong++
-            }
+        // 输入与正文按“非空白字符”对齐统计（正文分隔空格不计入、用户也不输入）
+        val inputVis = userInput.filter { !it.isWhitespace() }
+        var r = 0
+        for (c in text) {
+            if (c.isWhitespace()) continue
+            if (r >= inputVis.length) break
+            if (inputVis[r] == c) correct++ else wrong++
+            r++
         }
         return intArrayOf(correct, wrong)
     }
@@ -2815,6 +2837,8 @@ class MainActivity : AppCompatActivity() {
                 if (isWubiPractice) {
                     // 五笔关卡/自定义文章练习：返回对应列表界面
                     showPage(practiceReturnPage)
+                    // 返回后重新渲染列表，刷新各关卡"已完成N次"
+                    refreshReturnPage()
                 } else {
                     showPage("home")
                 }
