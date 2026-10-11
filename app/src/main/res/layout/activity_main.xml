@@ -293,6 +293,16 @@
                     android:layout_marginBottom="8dp">
 
                     <TextView
+                        android:id="@+id/char_count"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="8dp"
+                        android:textSize="12sp"
+                        android:textColor="@color/text_secondary"
+                        android:singleLine="true"
+                        android:gravity="center_vertical" />
+
+                    <TextView
                         android:id="@+id/practice_hint"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"

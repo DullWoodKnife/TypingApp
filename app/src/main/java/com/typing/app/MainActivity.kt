@@ -106,6 +106,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statSpeed: TextView
     private lateinit var statAcc: TextView
     private lateinit var practiceHint: TextView
+    // 练习内容字数（“正在输入…”左侧）
+    private lateinit var charCount: TextView
     private lateinit var wubiHint: TextView
     private lateinit var dictHint: TextView
     private lateinit var dictHintScroll: ScrollView
@@ -338,6 +340,7 @@ class MainActivity : AppCompatActivity() {
         statSpeed = findViewById(R.id.stat_speed)
         statAcc = findViewById(R.id.stat_acc)
         practiceHint = findViewById(R.id.practice_hint)
+        charCount = findViewById(R.id.char_count)
         practicePageTitle = findViewById(R.id.practice_page_title)
         practiceHeader = findViewById(R.id.practice_header)
         practiceStats = findViewById(R.id.practice_stats)
@@ -1254,6 +1257,7 @@ class MainActivity : AppCompatActivity() {
         val text = content.getString("content")
         typingTextView.setTextData(text, userInput, cursorVisible)
         updateHints(text)
+        updateCharCount(text)
         startCursorBlink()
 
         // 蓝牙/物理键盘已连接：禁止软键盘弹出（避免输入法候选栏占用练习区）并自动聚焦，进入练习页无需点屏幕即可直接打字
@@ -1277,11 +1281,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // 需输入的字符数：忽略空白分隔符（空格/换行等用户不输入）
+    private fun inputableCount(s: String): Int {
+        var n = 0
+        for (c in s) if (!c.isWhitespace()) n++
+        return n
+    }
+
+    // 刷新“字数:xxx”（当前练习内容的可输入字数）
+    private fun updateCharCount(text: String) {
+        if (!::charCount.isInitialized) return
+        charCount.text = getString(R.string.char_count_format, inputableCount(text))
+    }
+
     private fun updateTextDisplay(keepScroll: Boolean = false) {
         val content = getContent(currentContentId) ?: return
         val text = content.getString("content")
         typingTextView.setTextData(text, userInput, cursorVisible)
         updateHints(text)
+        updateCharCount(text)
         // 仅在输入内容变化时自动滚动到当前行；光标闪烁(keepScroll=true)时保留用户手动滚动位置
         if (!keepScroll) {
             autoScrollToCurrent()
@@ -1373,13 +1391,30 @@ class MainActivity : AppCompatActivity() {
             startTimer()
         }
 
+        // 练习内容需输入的字符数：忽略空白分隔符（空格/换行等用户不输入）
+        val enMode = typingTextView.isEnglishContent
+        val needLen = if (enMode) originalText.length else inputableCount(originalText)
         // Limit input length
-        userInput = if (text.length > originalText.length) {
-            val limited = text.substring(0, originalText.length)
-            hiddenInput.setText(limited)
-            limited
+        // 中文按“非空白字符”计数，并去除输入中的空白，避免正文分隔空格或键盘/输入法产生的隐形空白
+        // 把长度撑到正文长度而误判“已完成”（英文按原长度处理，空格有意义）。
+        userInput = if (enMode) {
+            if (text.length > originalText.length) {
+                val limited = text.substring(0, originalText.length)
+                hiddenInput.setText(limited)
+                limited
+            } else {
+                text
+            }
         } else {
-            text
+            val sanitized = text.filter { !it.isWhitespace() }
+            val limited = if (sanitized.length > needLen) sanitized.substring(0, needLen) else sanitized
+            if (limited != text) {
+                try {
+                    hiddenInput.setText(limited)
+                    hiddenInput.setSelection(hiddenInput.text.length)
+                } catch (_: Exception) {}
+            }
+            limited
         }
 
 // 键盘音效：对 hiddenInput 新旧文本差异字符播放敲击/错误音。
@@ -1407,8 +1442,9 @@ class MainActivity : AppCompatActivity() {
         updateTextDisplay()
         updateStats(originalText)
 
-        // Check completion
-        if (userInput.length >= originalText.length && !isFinished) {
+        // Check completion：按“非空白字符”判断是否已输入完所有需输入的字符（避免空白误判提前完成）
+        val typedLen = if (typingTextView.isEnglishContent) userInput.length else inputableCount(userInput)
+        if (needLen > 0 && typedLen >= needLen && !isFinished) {
             isFinished = true
             stopTimer()
             stopCursorBlink()
@@ -1484,8 +1520,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateStats(text: String) {
         val stats = recalcStats(text)
-        val totalLen = text.length
-        val prog = if (totalLen > 0) Math.min(100, Math.round(userInput.length.toFloat() / totalLen * 100)) else 0
+        // 进度按“非空白字符”计算：正文中的空格/换行等分隔符不计入、用户也不输入
+        val enMode = typingTextView.isEnglishContent
+        val totalLen = if (enMode) text.length else inputableCount(text)
+        val typedLen = if (enMode) userInput.length else inputableCount(userInput)
+        val prog = if (totalLen > 0) Math.min(100, Math.round(typedLen.toFloat() / totalLen * 100)) else 0
         statProgress.text = "$prog%"
 
         val acc = if (stats[0] + stats[1] > 0) Math.round(stats[0].toFloat() / (stats[0] + stats[1]) * 100) else 0
@@ -1564,11 +1603,15 @@ class MainActivity : AppCompatActivity() {
 
         val content = getContent(currentContentId) ?: return
         val text = content.getString("content")
-        userInput = hiddenInput.text.toString()
-        if (userInput.length > text.length) {
-            userInput = text
-            hiddenInput.setText(userInput)
+        val raw = hiddenInput.text.toString()
+        userInput = if (typingTextView.isEnglishContent) {
+            if (raw.length > text.length) raw.substring(0, text.length) else raw
+        } else {
+            val sanitized = raw.filter { !it.isWhitespace() }
+            val needLen = inputableCount(text)
+            if (sanitized.length > needLen) sanitized.substring(0, needLen) else sanitized
         }
+        if (userInput != raw) hiddenInput.setText(userInput)
 
         val stats = recalcStats(text)
         updateTextDisplay()

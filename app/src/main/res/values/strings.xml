@@ -15,6 +15,7 @@
     <string name="stat_speed">速度(字/分)</string>
     <string name="stat_accuracy">正确率</string>
     <string name="practice_hint">点击下方输入框开始打字</string>
+    <string name="char_count_format">字数:%1$d</string>
     <string name="input_placeholder">在此输入…</string>
     <string name="btn_restart">重新开始</string>
     <string name="btn_back_home">返回首页</string>
