@@ -307,7 +307,7 @@ class MainActivity : AppCompatActivity() {
         "preset/p10_chengzizigen.txt", "preset/p11_changyong500.txt"
     )
     // 预置内容版本号：内容调整后递增，升级时整体替换旧预置内容
-    private val PRESET_VERSION = 2
+    private val PRESET_VERSION = 3
 
     private fun readAssetText(name: String): String {
         return try {
