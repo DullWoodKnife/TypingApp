@@ -109,18 +109,6 @@
                             app:strokeColor="@color/destructive"
                             android:textColor="@color/destructive" />
 
-                        <Button
-                            android:id="@+id/btn_english_special"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:minHeight="64dp"
-                            android:paddingVertical="18dp"
-                            android:layout_marginTop="36dp"
-                            android:text="@string/btn_english_special"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            app:strokeColor="@color/destructive"
-                            android:textColor="@color/destructive" />
-
                     </LinearLayout>
 
                 </LinearLayout>
@@ -1041,64 +1029,6 @@
             </ScrollView>
 
         </FrameLayout>
-
-        <!-- 英文练习：短篇小说列表 -->
-        <LinearLayout
-            android:id="@+id/page_english_special"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:padding="16dp"
-            android:visibility="gone">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="8dp">
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/english_special_title"
-                    android:textSize="20sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/text_primary" />
-
-                <Button
-                    android:id="@+id/btn_english_back_home"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/btn_back"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                    app:strokeColor="@color/destructive"
-                    android:textColor="@color/destructive"
-                    android:minWidth="72dp"
-                    android:textSize="13sp" />
-            </LinearLayout>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/english_special_hint"
-                android:textSize="12sp"
-                android:textColor="@color/text_secondary"
-                android:layout_marginBottom="12dp" />
-
-            <ScrollView
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1">
-
-                <LinearLayout
-                    android:id="@+id/english_list_container"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical" />
-            </ScrollView>
-        </LinearLayout>
 
         <!-- 五笔打字专项：分类主界面 -->
         <FrameLayout

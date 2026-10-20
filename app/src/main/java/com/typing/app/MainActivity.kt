@@ -214,14 +214,8 @@ class MainActivity : AppCompatActivity() {
     private var wubiCategory = "single" // "single" | "xiehouyu" | "chengyu" | "phrase"
     // 五笔关卡练习模式标记：控制练习页右上角按钮文案、底部"重新开始/返回首页"是否显示
     private var isWubiPractice = false
-    // 练习页右上角"返回"要返回到的页面：wubiLevels、customArticles 或 englishSpecial
+    // 练习页右上角"返回"要返回到的页面：wubiLevels 或 customArticles
     private var practiceReturnPage = "wubiLevels"
-
-    // ===== 英文练习专项 =====
-    private lateinit var pageEnglishSpecial: View
-    private lateinit var englishListContainer: LinearLayout
-    private var englishIndex: JSONArray? = null
-    private val englishStories: HashMap<String, JSONObject> = HashMap()
 
     // ===== 自定义文章 =====
     private lateinit var pageCustomArticles: View
@@ -455,8 +449,6 @@ class MainActivity : AppCompatActivity() {
         navRecords = findViewById(R.id.nav_records)
 
         pageWubiSpecial = findViewById(R.id.page_wubi_special)
-        pageEnglishSpecial = findViewById(R.id.page_english_special)
-        englishListContainer = findViewById(R.id.english_list_container)
         pageWubiLevels = findViewById(R.id.page_wubi_levels)
         wubiLevelsContainer = findViewById(R.id.wubi_levels_container)
         wubiLevelsTitle = findViewById(R.id.wubi_levels_title)
@@ -510,15 +502,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 五笔打字专项入口
-        findViewById<Button>(R.id.btn_english_special).setOnClickListener {
-            showPage("englishSpecial")
-            renderEnglishList()
-        }
-
-        findViewById<Button>(R.id.btn_english_back_home).setOnClickListener {
-            showPage("home")
-        }
-
         findViewById<Button>(R.id.btn_wubi_special).setOnClickListener {
             showPage("wubiSpecial")
         }
@@ -790,7 +773,6 @@ class MainActivity : AppCompatActivity() {
         pageChallenge.visibility = View.GONE
         pageSettings.visibility = View.GONE
         pageWubiSpecial.visibility = View.GONE
-        pageEnglishSpecial.visibility = View.GONE
         pageWubiLevels.visibility = View.GONE
         pageCustomArticles.visibility = View.GONE
         pageCustomArticleEdit.visibility = View.GONE
@@ -804,7 +786,6 @@ class MainActivity : AppCompatActivity() {
             "records" -> pageRecords.visibility = View.VISIBLE
             "challenge" -> pageChallenge.visibility = View.VISIBLE
             "wubiSpecial" -> pageWubiSpecial.visibility = View.VISIBLE
-            "englishSpecial" -> pageEnglishSpecial.visibility = View.VISIBLE
             "wubiLevels" -> pageWubiLevels.visibility = View.VISIBLE
             "customArticles" -> pageCustomArticles.visibility = View.VISIBLE
             "customArticleEdit" -> pageCustomArticleEdit.visibility = View.VISIBLE
@@ -826,7 +807,6 @@ class MainActivity : AppCompatActivity() {
         when (practiceReturnPage) {
             "wubiLevels" -> renderWubiLevels()
             "customArticles" -> renderCustomArticles()
-            "englishSpecial" -> renderEnglishList()
             "contentList" -> renderContentList()
         }
     }
@@ -1359,10 +1339,6 @@ class MainActivity : AppCompatActivity() {
                 else -> "单字"
             }
             practicePageTitle.text = "${categoryName}-第${levelNum}关-练习模式"
-        } else if (currentContentId.startsWith("en")) {
-            // 英文练习：显示短篇标题
-            val t = content.optString("title","")
-            practicePageTitle.text = if (t.isEmpty()) getString(R.string.practice_title) else t
         } else {
             practicePageTitle.text = getString(R.string.practice_title)
         }
@@ -1900,10 +1876,6 @@ class MainActivity : AppCompatActivity() {
     // ===== Content Management =====
 
     private fun getContent(id: String): JSONObject? {
-        // 英文练习专项：按 id 从 assets/preset_english 读取，不写入 contents 列表
-        if (id.startsWith("en")) {
-            return getEnglishStory(id)
-        }
         // 五笔打字专项关卡内容：无需进入 contents 列表，直接按 id 生成
         if (id.startsWith("wubi_single_")) {
             val level = id.removePrefix("wubi_single_").toIntOrNull() ?: return null
@@ -2026,103 +1998,6 @@ class MainActivity : AppCompatActivity() {
             customArticlesContainer.addView(layout)
             customArticlesContainer.addView(divider, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1))
         }
-    }
-
-    // ===== 英文练习专项：数据加载与列表 =====
-
-    // 读取 assets/english_index.json，构建 101 篇短篇小说索引
-    private fun ensureEnglishIndexLoaded(): JSONArray {
-        englishIndex?.let { return it }
-        val arr = try {
-            val raw = assets.open("english_index.json").bufferedReader(Charsets.UTF_8).use { it.readText() }
-            JSONArray(raw)
-        } catch (e: Exception) {
-            JSONArray()
-        }
-        englishIndex = arr
-        return arr
-    }
-
-    // 按 id 读取英文短篇正文（带缓存），返回可直接练习的内容对象
-    private fun getEnglishStory(id: String): JSONObject? {
-        englishStories[id]?.let { return it }
-        val idx = ensureEnglishIndexLoaded()
-        for (i in 0 until idx.length()) {
-            val o = idx.optJSONObject(i) ?: continue
-            if (o.optString("id") == id) {
-                val text = readAssetText(o.optString("file"))
-                if (text.isEmpty()) return null
-                val obj = JSONObject()
-                obj.put("id", id)
-                obj.put("title", o.optString("title"))
-                obj.put("author", o.optString("author"))
-                obj.put("content", text)
-                englishStories[id] = obj
-                return obj
-            }
-        }
-        return null
-    }
-
-    // 渲染英文短篇小说列表：按短篇名逐条展示
-    private fun renderEnglishList() {
-        if (!::englishListContainer.isInitialized) return
-        englishListContainer.removeAllViews()
-        val idx = ensureEnglishIndexLoaded()
-        if (idx.length() == 0) {
-            val empty = TextView(this).apply {
-                text = getString(R.string.empty_content)
-                setTextColor(Color.parseColor("#59000000"))
-                textSize = 14f
-                gravity = Gravity.CENTER
-                setPadding(0, 80, 0, 80)
-            }
-            englishListContainer.addView(empty)
-            return
-        }
-        for (i in 0 until idx.length()) {
-            val o = idx.optJSONObject(i) ?: continue
-            val id = o.optString("id")
-            val title = o.optString("title")
-            val author = o.optString("author")
-
-            val layout = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(4, 22, 4, 22)
-                isClickable = true
-                setOnClickListener { startEnglishPractice(id) }
-            }
-
-            val titleView = TextView(this).apply {
-                text = "${i + 1}. $title"
-                textSize = 14f
-                setTextColor(Color.parseColor("#CC000000"))
-                typeface = Typeface.DEFAULT_BOLD
-            }
-            val authorView = TextView(this).apply {
-                text = author
-                textSize = 11f
-                setTextColor(Color.parseColor("#80000000"))
-                setPadding(0, 4, 0, 0)
-            }
-            layout.addView(titleView)
-            layout.addView(authorView)
-            englishListContainer.addView(layout)
-
-            val divider = View(this).apply { setBackgroundColor(Color.parseColor("#14000000")) }
-            englishListContainer.addView(divider, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1))
-        }
-    }
-
-    // 从英文短篇列表进入练习
-    private fun startEnglishPractice(id: String) {
-        if (getEnglishStory(id) == null) return
-        currentContentId = id
-        practiceMode = "normal"
-        isWubiPractice = true
-        practiceReturnPage = "englishSpecial"
-        showPage("practice")
-        initPractice()
     }
 
     private fun selectCustomArticleForPractice(id: String) {
@@ -3122,7 +2997,6 @@ class MainActivity : AppCompatActivity() {
             }
             pageSettings.visibility == View.VISIBLE -> showPage("home")
             // 五笔打字专项：逐级返回上一级界面
-            pageEnglishSpecial.visibility == View.VISIBLE -> showPage("home")
             pageWubiSpecial.visibility == View.VISIBLE -> showPage("home")
             pageWubiLevels.visibility == View.VISIBLE -> showPage("wubiSpecial")
             pageCustomArticles.visibility == View.VISIBLE -> showPage("wubiSpecial")
