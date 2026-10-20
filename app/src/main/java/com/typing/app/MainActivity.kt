@@ -109,6 +109,8 @@ class MainActivity : AppCompatActivity() {
     // 练习内容字数（“正在输入…”左侧）
     private lateinit var charCount: TextView
     private lateinit var wubiHint: TextView
+    // 光标处汉字的拆解过程（拼音 → 五笔 → 拆解）
+    private lateinit var wubiDetail: TextView
     private lateinit var dictHint: TextView
     private lateinit var dictHintScroll: ScrollView
     private lateinit var practicePageTitle: TextView
@@ -400,6 +402,7 @@ class MainActivity : AppCompatActivity() {
         statSpeedLabel = findViewById(R.id.stat_speed_label)
         statAccLabel = findViewById(R.id.stat_acc_label)
         wubiHint = findViewById(R.id.wubi_hint)
+        wubiDetail = findViewById(R.id.wubi_detail)
         dictHint = findViewById(R.id.dict_hint)
         dictHintScroll = findViewById(R.id.dict_hint_scroll)
         typingScrollView = findViewById(R.id.typing_scroll_view)
@@ -974,11 +977,56 @@ class MainActivity : AppCompatActivity() {
     // 光标所对应的正文下标由 currentHintIndex 计算（按非空白字符对齐）。
     private fun updateWubiHint(text: String) {
         val idx = currentHintIndex(text)
-        val code = if (idx >= 0 && idx < text.length) getWubiCode(text[idx]) else ""
-        if (wubiHint.text.toString() != code) {
-            wubiHint.text = code
+        val ch = if (idx >= 0 && idx < text.length) text[idx] else null
+        val entry = if (ch != null) getWubiDetail(ch) else null
+        val pinyin = entry?.pinyin?.takeIf { it.isNotEmpty() }
+        val code = entry?.wubi?.takeIf { it.isNotEmpty() }
+            ?: if (ch != null) getWubiCode(ch) else ""
+        val hint = buildString {
+            if (!pinyin.isNullOrEmpty()) append("拼音：").append(pinyin)
+            if (code.isNotEmpty()) {
+                if (isNotEmpty()) append("  ·  ")
+                append("五笔：").append(code)
+            }
+        }
+        val detail = entry?.detail?.takeIf { it.isNotEmpty() }?.let { "拆解：" + it } ?: ""
+        if (wubiHint.text.toString() != hint) wubiHint.text = hint
+        if (::wubiDetail.isInitialized && wubiDetail.text.toString() != detail) {
+            wubiDetail.text = detail
         }
     }
+
+    // 五笔数据（拼音 / 五笔编码 / 拆解过程），见 assets/wubi_detail.json
+    data class WubiDetailEntry(val pinyin: String, val wubi: String, val detail: String)
+
+    private var wubiDetailTable: HashMap<String, WubiDetailEntry>? = null
+
+    private fun loadWubiDetailTable(): HashMap<String, WubiDetailEntry> {
+        val map = HashMap<String, WubiDetailEntry>()
+        try {
+            val text = assets.open("wubi_detail.json").bufferedReader().use { it.readText() }
+            val root = JSONObject(text)
+            val keys = root.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                val o = root.optJSONObject(k) ?: continue
+                map[k] = WubiDetailEntry(
+                    o.optString("p", ""),
+                    o.optString("w", ""),
+                    o.optString("d", "")
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return map
+    }
+
+    private fun getWubiDetail(ch: Char): WubiDetailEntry? {
+        val table = wubiDetailTable ?: loadWubiDetailTable().also { wubiDetailTable = it }
+        return table[ch.toString()]
+    }
+
 
     // 计算光标右侧待输入汉字的字符下标（即下一个要打的字）。
     // 关键：输入与正文按“非空白字符”一一对齐（与 TypingTextView 的 visibleIndices 一致），
@@ -1004,6 +1052,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateHints(text: String) {
         if (isFinished || text.isEmpty()) {
             wubiHint.text = ""
+            if (::wubiDetail.isInitialized) wubiDetail.text = ""
             dictHint.text = ""
             return
         }
@@ -2897,6 +2946,7 @@ class MainActivity : AppCompatActivity() {
         val hintSize = if (compact) 9f else if (landscape) 11f else 12f
         if (::practiceHint.isInitialized) practiceHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, hintSize)
         if (::wubiHint.isInitialized) wubiHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, hintSize)
+        if (::wubiDetail.isInitialized) wubiDetail.setTextSize(TypedValue.COMPLEX_UNIT_SP, hintSize - 0.5f)
         if (::dictHint.isInitialized) dictHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, hintSize)
 
         // 横屏隐藏底部操作按钮行（重开等），避免占用宝贵高度（加保护：绝不隐藏练习页本身）

@@ -326,6 +326,18 @@
                         android:ellipsize="end" />
                 </LinearLayout>
 
+                <!-- 光标处汉字的拆解过程：字根序列 + 末尾识别码 -->
+                <TextView
+                    android:id="@+id/wubi_detail"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:textSize="11sp"
+                    android:textColor="@color/text_secondary"
+                    android:fontFamily="monospace"
+                    android:maxLines="2"
+                    android:ellipsize="end" />
+
                 <!-- 拼音/音标 + 释义（跟随当前字，输入完成后再切换）；释义过长时可上下滑动查看 -->
                 <ScrollView
                     android:id="@+id/dict_hint_scroll"
