@@ -272,6 +272,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             appData = defaultData()
         }
+        applyPresetMigration()
         val contents = appData.optJSONArray("contents")
         if (contents != null && contents.length() > 0) {
             currentContentId = contents.getJSONObject(0).getString("id")
@@ -293,34 +294,83 @@ class MainActivity : AppCompatActivity() {
             .apply()
     }
 
-    private fun defaultData(): JSONObject {
-        val now = System.currentTimeMillis()
-        val data = JSONObject()
-        val contents = JSONArray()
+    // 预置练习内容：按产品要求固定为 11 篇，顺序不可调整
+    private val PRESET_TITLES = arrayOf(
+        "三字经", "千字文", "百家姓", "般若波罗蜜多心经", "太上老君说常清静经",
+        "经乱离后天恩流夜郎忆旧游书怀赠江夏韦太守良宰", "常用汉字 3500 字",
+        "难拆字大全 200 字", "二级简码字大全", "成字字根大全", "常用 500 字文"
+    )
+    private val PRESET_FILES = arrayOf(
+        "preset/p01_sanzijing.txt", "preset/p02_qianziwen.txt", "preset/p03_baijiaxing.txt",
+        "preset/p04_xinjing.txt", "preset/p05_qingjingjing.txt", "preset/p06_libai.txt",
+        "preset/p07_hz3500.txt", "preset/p08_nanchaizi.txt", "preset/p09_erjijianma.txt",
+        "preset/p10_chengzizigen.txt", "preset/p11_changyong500.txt"
+    )
+    // 预置内容版本号：内容调整后递增，升级时整体替换旧预置内容
+    private val PRESET_VERSION = 2
 
-        val items = arrayOf(
-            arrayOf("c1", "五课", "古云：不矜细行，终累大德。为山九仞，功亏一篑。此圣贤之深戒也。然今之士人，多务虚名而鲜实学，逐末忘本，舍近求远。是以所学非所用，所用非所学，终无成焉。"),
-            arrayOf("c2", "正气歌", "天地有正气，杂然赋流形。下则为河岳，上则为日星。于人曰浩然，沛乎塞苍冥。皇路当清夷，含和吐明庭。时穷节乃见，一一垂丹青。"),
-            arrayOf("c3", "说园", "园有静观、动观之分。小园以静观为主，大园以动观为主。静观者，如静坐斋中，平视远眺，景随人意；动观者，步移景换，如游画中。"),
-            arrayOf("c4", "清静经", "大道无形，生育天地；大道无情，运行日月；大道无名，长养万物。吾不知其名，强名曰道。夫道者，有清有浊，有动有静。"),
-            arrayOf("c5", "夏夜晚风", "夏夜的风，带着白天的余温，轻轻拂过脸颊。远处的蝉鸣此起彼伏，像是大自然的交响乐。星空下，一切都显得那么宁静而美好。"),
-            arrayOf("c6", "千字文", "天地玄黄，宇宙洪荒。日月盈昃，辰宿列张。寒来暑往，秋收冬藏。闰余成岁，律吕调阳。云腾致雨，露结为霜。"),
-            arrayOf("c7", "孙子兵法始计篇", "孙子曰：兵者，国之大事，死生之地，存亡之道，不可不察也。故经之以五事，校之以计，而索其情：一曰道，二曰天，三曰地，四曰将，五曰法。"),
-            arrayOf("c8", "三字经", "人之初，性本善。性相近，习相远。苟不教，性乃迁。教之道，贵以专。昔孟母，择邻处。子不学，断机杼。窦燕山，有义方。教五子，名俱扬。"),
-            arrayOf("c9", "般若波罗蜜多心经", "观自在菩萨，行深般若波罗蜜多时，照见五蕴皆空，度一切苦厄。舍利子，色不异空，空不异色，色即是空，空即是色。受想行识，亦复如是。")
-        )
-
-        for (item in items) {
-            val obj = JSONObject()
-            obj.put("id", item[0])
-            obj.put("title", item[1])
-            obj.put("content", item[2])
-            obj.put("createdAt", now)
-            contents.put(obj)
+    private fun readAssetText(name: String): String {
+        return try {
+            assets.open(name).bufferedReader(Charsets.UTF_8).use { it.readText() }.trim()
+        } catch (e: Exception) {
+            ""
         }
+    }
 
-        data.put("contents", contents)
+    private fun loadPresetContents(): JSONArray {
+        val arr = JSONArray()
+        val now = System.currentTimeMillis()
+        for (i in PRESET_FILES.indices) {
+            val text = readAssetText(PRESET_FILES[i])
+            if (text.isEmpty()) continue
+            val obj = JSONObject()
+            obj.put("id", "p%02d".format(i + 1))
+            obj.put("title", PRESET_TITLES[i])
+            obj.put("content", text)
+            obj.put("createdAt", now)
+            arr.put(obj)
+        }
+        return arr
+    }
+
+    // 清除旧预置内容（c1..c9 及旧版本 p01..p11），按新顺序写入 11 篇；保留用户自建内容与练习记录
+    private fun applyPresetMigration() {
+        val current = appData.optInt("preset_version", 1)
+        if (current >= PRESET_VERSION) return
+        val presets = loadPresetContents()
+        if (presets.length() == 0) return
+        val presetIds = HashSet<String>()
+        for (i in 0 until presets.length()) {
+            presetIds.add(presets.getJSONObject(i).getString("id"))
+        }
+        for (i in 1..9) presetIds.add("c$i")
+        val old = appData.optJSONArray("contents") ?: JSONArray()
+        val kept = JSONArray()
+        for (i in 0 until old.length()) {
+            val obj = old.optJSONObject(i) ?: continue
+            if (presetIds.contains(obj.optString("id"))) continue
+            kept.put(obj)
+        }
+        val merged = JSONArray()
+        for (i in 0 until presets.length()) merged.put(presets.getJSONObject(i))
+        for (i in 0 until kept.length()) merged.put(kept.getJSONObject(i))
+        appData.put("contents", merged)
+        appData.put("preset_version", PRESET_VERSION)
+        // 当前选中项若已被移除，回退到第一篇预置内容
+        if (getContent(currentContentId) == null && presets.length() > 0) {
+            currentContentId = presets.getJSONObject(0).getString("id")
+        }
+        if (getContent(normalContentId) == null && presets.length() > 0) {
+            normalContentId = presets.getJSONObject(0).getString("id")
+        }
+        saveData()
+    }
+
+    private fun defaultData(): JSONObject {
+        val data = JSONObject()
+        data.put("contents", loadPresetContents())
         data.put("records", JSONArray())
+        data.put("preset_version", PRESET_VERSION)
         return data
     }
 
