@@ -1,0 +1,608 @@
+[
+ {
+  "id": "en001",
+  "file": "preset_english/e001_after_twenty_years.txt",
+  "title": "AFTER TWENTY YEARS",
+  "author": "O. Henry"
+ },
+ {
+  "id": "en002",
+  "file": "preset_english/e002_angela.txt",
+  "title": "ANGELA",
+  "author": "William Schwenk Gilbert"
+ },
+ {
+  "id": "en003",
+  "file": "preset_english/e003_a_baby_tramp.txt",
+  "title": "A BABY TRAMP",
+  "author": "Ambrose Bierce"
+ },
+ {
+  "id": "en004",
+  "file": "preset_english/e004_before_the_law.txt",
+  "title": "BEFORE THE LAW",
+  "author": "Franz Kafka"
+ },
+ {
+  "id": "en005",
+  "file": "preset_english/e005_beneath_an_umbrella.txt",
+  "title": "BENEATH AN UMBRELLA",
+  "author": "Nathaniel Hawthorne"
+ },
+ {
+  "id": "en006",
+  "file": "preset_english/e006_the_bet.txt",
+  "title": "THE BET",
+  "author": "Anton P. Chekhov"
+ },
+ {
+  "id": "en007",
+  "file": "preset_english/e007_the_birthmark.txt",
+  "title": "THE BIRTHMARK",
+  "author": "Nathaniel Hawthorne"
+ },
+ {
+  "id": "en008",
+  "file": "preset_english/e008_the_black_cat.txt",
+  "title": "THE BLACK CAT",
+  "author": "Edgar Allan Poe"
+ },
+ {
+  "id": "en009",
+  "file": "preset_english/e009_the_blue_room.txt",
+  "title": "THE BLUE ROOM",
+  "author": "Kenneth Grahame"
+ },
+ {
+  "id": "en010",
+  "file": "preset_english/e010_the_box_tunnel.txt",
+  "title": "THE BOX TUNNEL",
+  "author": "Charles Reade"
+ },
+ {
+  "id": "en011",
+  "file": "preset_english/e011_the_broken_heart.txt",
+  "title": "THE BROKEN HEART",
+  "author": "Washington Irving"
+ },
+ {
+  "id": "en012",
+  "file": "preset_english/e012_to_build_a_fire.txt",
+  "title": "TO BUILD A FIRE",
+  "author": "Jack London"
+ },
+ {
+  "id": "en013",
+  "file": "preset_english/e013_a_bush_dance.txt",
+  "title": "A BUSH DANCE",
+  "author": "Henry Lawson"
+ },
+ {
+  "id": "en014",
+  "file": "preset_english/e014_candles.txt",
+  "title": "CANDLES",
+  "author": "Margery Vener Reed"
+ },
+ {
+  "id": "en015",
+  "file": "preset_english/e015_the_cat_and_the_fiddle.txt",
+  "title": "THE CAT AND THE FIDDLE",
+  "author": "L. Frank Baum"
+ },
+ {
+  "id": "en016",
+  "file": "preset_english/e016_the_chink_and_the_chid.txt",
+  "title": "THE CHINK AND THE CHID",
+  "author": "Thomas Burke"
+ },
+ {
+  "id": "en017",
+  "file": "preset_english/e017_the_christmas_tree_and_the_wedding.txt",
+  "title": "THE CHRISTMAS TREE AND THE WEDDING",
+  "author": "Fiodor M. Dostoyevsky"
+ },
+ {
+  "id": "en018",
+  "file": "preset_english/e018_clocks.txt",
+  "title": "CLOCKS",
+  "author": "Jerome K. Jerome"
+ },
+ {
+  "id": "en019",
+  "file": "preset_english/e019_confession.txt",
+  "title": "CONFESSION",
+  "author": "Jack London"
+ },
+ {
+  "id": "en020",
+  "file": "preset_english/e020_country_life_in_canada_in_the_thirties.txt",
+  "title": "COUNTRY LIFE IN CANADA IN THE “THIRTIES”",
+  "author": "Canniff Haight"
+ },
+ {
+  "id": "en021",
+  "file": "preset_english/e021_coward.txt",
+  "title": "COWARD",
+  "author": "Guy De Maupassant"
+ },
+ {
+  "id": "en022",
+  "file": "preset_english/e022_a_cup_of_tea.txt",
+  "title": "A CUP OF TEA",
+  "author": "Katherine Mansfield"
+ },
+ {
+  "id": "en023",
+  "file": "preset_english/e023_the_danger_of_lying_in_bed.txt",
+  "title": "THE DANGER OF LYING IN BED",
+  "author": "Mark Twain"
+ },
+ {
+  "id": "en024",
+  "file": "preset_english/e024_the_diamond_necklace.txt",
+  "title": "THE DIAMOND NECKLACE",
+  "author": "Guy Do Maupassant"
+ },
+ {
+  "id": "en025",
+  "file": "preset_english/e025_the_egg.txt",
+  "title": "THE EGG",
+  "author": "Sherwood Anderson"
+ },
+ {
+  "id": "en026",
+  "file": "preset_english/e026_the_emperor_s_new_clothes.txt",
+  "title": "THE EMPEROR’S NEW CLOTHES",
+  "author": "Hans Christian Anderson"
+ },
+ {
+  "id": "en027",
+  "file": "preset_english/e027_the_empty_house.txt",
+  "title": "THE EMPTY HOUSE",
+  "author": "Algernon Blackwood"
+ },
+ {
+  "id": "en028",
+  "file": "preset_english/e028_the_end_of_the_party.txt",
+  "title": "THE END OF THE PARTY",
+  "author": "Graham Greene"
+ },
+ {
+  "id": "en029",
+  "file": "preset_english/e029_evolution.txt",
+  "title": "EVOLUTION",
+  "author": "John Galsworthy"
+ },
+ {
+  "id": "en030",
+  "file": "preset_english/e030_a_fight_with_a_cannon.txt",
+  "title": "A FIGHT WITH A CANNON",
+  "author": "Victor Hugo"
+ },
+ {
+  "id": "en031",
+  "file": "preset_english/e031_from_a_back_window.txt",
+  "title": "FROM A BACK WINDOW",
+  "author": "Bret Harte"
+ },
+ {
+  "id": "en032",
+  "file": "preset_english/e032_the_fulness_of_life.txt",
+  "title": "THE FULNESS OF LIFE",
+  "author": "Edith Wharton"
+ },
+ {
+  "id": "en033",
+  "file": "preset_english/e033_the_gift_of_the_magi.txt",
+  "title": "THE GIFT OF THE MAGI",
+  "author": "O. Henry"
+ },
+ {
+  "id": "en034",
+  "file": "preset_english/e034_a_glass_of_beer.txt",
+  "title": "A GLASS OF BEER",
+  "author": "James Stevenson"
+ },
+ {
+  "id": "en035",
+  "file": "preset_english/e035_god_sees_the_truth_but_waits.txt",
+  "title": "GOD SEES THE TRUTH, BUT WAITS",
+  "author": "Leo N. Tolstoy"
+ },
+ {
+  "id": "en036",
+  "file": "preset_english/e036_a_great_mistake.txt",
+  "title": "A GREAT MISTAKE",
+  "author": "Stephen Crane"
+ },
+ {
+  "id": "en037",
+  "file": "preset_english/e037_the_green_door.txt",
+  "title": "THE GREEN DOOR",
+  "author": "O. Henry"
+ },
+ {
+  "id": "en038",
+  "file": "preset_english/e038_her_lover.txt",
+  "title": "HER LOVER",
+  "author": "Maxim Gorky"
+ },
+ {
+  "id": "en039",
+  "file": "preset_english/e039_her_turn.txt",
+  "title": "HER TURN",
+  "author": "D. H. Lawrence"
+ },
+ {
+  "id": "en040",
+  "file": "preset_english/e040_his_wedded_wife.txt",
+  "title": "HIS WEDDED WIFE",
+  "author": "Rudyard Kipling"
+ },
+ {
+  "id": "en041",
+  "file": "preset_english/e041_a_hunger_artist.txt",
+  "title": "A HUNGER ARTIST",
+  "author": "Franz Kafka"
+ },
+ {
+  "id": "en042",
+  "file": "preset_english/e042_the_ice_palace.txt",
+  "title": "THE ICE PALACE",
+  "author": "F. Scott Fitzgerald"
+ },
+ {
+  "id": "en043",
+  "file": "preset_english/e043_the_inconsiderate_waiter.txt",
+  "title": "THE INCONSIDERATE WAITER",
+  "author": "James Matthew Barrie"
+ },
+ {
+  "id": "en044",
+  "file": "preset_english/e044_the_kiss.txt",
+  "title": "THE KISS",
+  "author": "Kate Chopin"
+ },
+ {
+  "id": "en045",
+  "file": "preset_english/e045_the_lady_or_the_tiger.txt",
+  "title": "THE LADY, OR THE TIGER?",
+  "author": "Frank R. Stockton"
+ },
+ {
+  "id": "en046",
+  "file": "preset_english/e046_the_last_leaf.txt",
+  "title": "THE LAST LEAF",
+  "author": "O. Henry"
+ },
+ {
+  "id": "en047",
+  "file": "preset_english/e047_the_last_lesson.txt",
+  "title": "THE LAST LESSON",
+  "author": "Alphonse Daudet"
+ },
+ {
+  "id": "en048",
+  "file": "preset_english/e048_the_last_penny.txt",
+  "title": "THE LAST PENNY",
+  "author": "T. S. Arthur"
+ },
+ {
+  "id": "en049",
+  "file": "preset_english/e049_the_last_sixty_minutes.txt",
+  "title": "THE LAST SIXTY MINUTES",
+  "author": "Susan Glaspell"
+ },
+ {
+  "id": "en050",
+  "file": "preset_english/e050_the_law_of_life.txt",
+  "title": "THE LAW OF LIFE",
+  "author": "Jack London"
+ },
+ {
+  "id": "en051",
+  "file": "preset_english/e051_the_legend_of_the_bleeding_heart.txt",
+  "title": "THE LEGEND OF THE BLEEDING-HEART",
+  "author": "Annie Fellows Johnston"
+ },
+ {
+  "id": "en052",
+  "file": "preset_english/e052_the_leopard_man_s_story.txt",
+  "title": "THE LEOPARD MAN’S STORY",
+  "author": "Jack London"
+ },
+ {
+  "id": "en053",
+  "file": "preset_english/e053_a_lickpenny_lover.txt",
+  "title": "A LICKPENNY LOVER",
+  "author": "O. Henry"
+ },
+ {
+  "id": "en054",
+  "file": "preset_english/e054_life.txt",
+  "title": "LIFE",
+  "author": "Ben Hecht"
+ },
+ {
+  "id": "en055",
+  "file": "preset_english/e055_the_lion_s_share.txt",
+  "title": "THE LION’S SHARE",
+  "author": "Arnold Bennet"
+ },
+ {
+  "id": "en056",
+  "file": "preset_english/e056_the_loaded_dog.txt",
+  "title": "THE LOADED DOG",
+  "author": "Henry Lawson"
+ },
+ {
+  "id": "en057",
+  "file": "preset_english/e057_a_lonely_ride.txt",
+  "title": "A LONELY RIDE",
+  "author": "Bret Harte"
+ },
+ {
+  "id": "en058",
+  "file": "preset_english/e058_long_distance.txt",
+  "title": "LONG DISTANCE",
+  "author": "Eena Ferber"
+ },
+ {
+  "id": "en059",
+  "file": "preset_english/e059_long_odds.txt",
+  "title": "LONG ODDS",
+  "author": "H. Rider Haggard"
+ },
+ {
+  "id": "en060",
+  "file": "preset_english/e060_the_lottery_ticket.txt",
+  "title": "THE LOTTERY TICKET",
+  "author": "Anton Chekov"
+ },
+ {
+  "id": "en061",
+  "file": "preset_english/e061_love_of_life.txt",
+  "title": "LOVE OF LIFE",
+  "author": "Jack London"
+ },
+ {
+  "id": "en062",
+  "file": "preset_english/e062_love_faith_and_hope.txt",
+  "title": "LOVE, FAITH AND HOPE",
+  "author": "Leonid Andreyev"
+ },
+ {
+  "id": "en063",
+  "file": "preset_english/e063_luck.txt",
+  "title": "LUCK",
+  "author": "Mark Twain"
+ },
+ {
+  "id": "en064",
+  "file": "preset_english/e064_the_mass_of_shadows.txt",
+  "title": "THE MASS OF SHADOWS",
+  "author": "Anatole France"
+ },
+ {
+  "id": "en065",
+  "file": "preset_english/e065_measure_for_measure.txt",
+  "title": "MEASURE FOR MEASURE",
+  "author": "Edith Nesbit"
+ },
+ {
+  "id": "en066",
+  "file": "preset_english/e066_the_mirror.txt",
+  "title": "THE MIRROR",
+  "author": "Catulle Mendes"
+ },
+ {
+  "id": "en067",
+  "file": "preset_english/e067_the_model_millionaire.txt",
+  "title": "THE MODEL MILLIONAIRE",
+  "author": "Oscar Wilde"
+ },
+ {
+  "id": "en068",
+  "file": "preset_english/e068_monday_or_tuesday.txt",
+  "title": "MONDAY OR TUESDAY",
+  "author": "Virginia Woolf"
+ },
+ {
+  "id": "en069",
+  "file": "preset_english/e069_the_monkey_s_paw.txt",
+  "title": "THE MONKEY’S PAW",
+  "author": "W. W. Jacobs"
+ },
+ {
+  "id": "en070",
+  "file": "preset_english/e070_the_mortal_immortal.txt",
+  "title": "THE MORTAL IMMORTAL",
+  "author": "Mary Shelley"
+ },
+ {
+  "id": "en071",
+  "file": "preset_english/e071_my_own_true_ghost_story.txt",
+  "title": "MY OWN TRUE GHOST STORY",
+  "author": "Rudyard Kipling"
+ },
+ {
+  "id": "en072",
+  "file": "preset_english/e072_the_new_sun.txt",
+  "title": "THE NEW SUN",
+  "author": "J. S. Fletcher"
+ },
+ {
+  "id": "en073",
+  "file": "preset_english/e073_the_nice_people.txt",
+  "title": "THE NICE PEOPLE",
+  "author": "Henry Cuyler Bunner"
+ },
+ {
+  "id": "en074",
+  "file": "preset_english/e074_the_nightingale_and_the_rose.txt",
+  "title": "THE NIGHTINGALE AND THE ROSE",
+  "author": "Oscar Wilde"
+ },
+ {
+  "id": "en075",
+  "file": "preset_english/e075_an_old_mate_of_your_father_s.txt",
+  "title": "AN OLD MATE OF YOUR FATHER’S",
+  "author": "Henry Lawson"
+ },
+ {
+  "id": "en076",
+  "file": "preset_english/e076_on_love.txt",
+  "title": "ON LOVE",
+  "author": "Percy Bysshe Shelley"
+ },
+ {
+  "id": "en077",
+  "file": "preset_english/e077_the_open_window.txt",
+  "title": "THE OPEN WINDOW",
+  "author": "Saki"
+ },
+ {
+  "id": "en078",
+  "file": "preset_english/e078_a_pair_of_silk_stockings.txt",
+  "title": "A PAIR OF SILK STOCKINGS",
+  "author": "Kate Chopin"
+ },
+ {
+  "id": "en079",
+  "file": "preset_english/e079_panic_fears.txt",
+  "title": "PANIC FEARS",
+  "author": "Anton Chekov"
+ },
+ {
+  "id": "en080",
+  "file": "preset_english/e080_the_philosopher_in_the_apple_orchard.txt",
+  "title": "THE PHILOSOPHER IN THE APPLE ORCHARD",
+  "author": "Anthony Hope"
+ },
+ {
+  "id": "en081",
+  "file": "preset_english/e081_pig.txt",
+  "title": "PIG",
+  "author": "Rudyard Kipling"
+ },
+ {
+  "id": "en082",
+  "file": "preset_english/e082_a_question_of_time.txt",
+  "title": "A QUESTION OF TIME",
+  "author": "Sargent Kayme"
+ },
+ {
+  "id": "en083",
+  "file": "preset_english/e083_rollo_learning_to_play.txt",
+  "title": "ROLLO LEARNING TO PLAY",
+  "author": "Robert J. Burdette"
+ },
+ {
+  "id": "en084",
+  "file": "preset_english/e084_a_sea_of_troubles.txt",
+  "title": "A SEA OF TROUBLES",
+  "author": "P. G. Wodehouse"
+ },
+ {
+  "id": "en085",
+  "file": "preset_english/e085_the_signal_man.txt",
+  "title": "THE SIGNAL-MAN",
+  "author": "Charles Dickens"
+ },
+ {
+  "id": "en086",
+  "file": "preset_english/e086_the_sisters.txt",
+  "title": "THE SISTERS",
+  "author": "James Joyce"
+ },
+ {
+  "id": "en087",
+  "file": "preset_english/e087_the_sleeping_beauty_in_the_wood.txt",
+  "title": "THE SLEEPING BEAUTY IN THE WOOD",
+  "author": "Charles Perrault"
+ },
+ {
+  "id": "en088",
+  "file": "preset_english/e088_something_will_turn_up.txt",
+  "title": "SOMETHING WILL TURN UP",
+  "author": "David Mason"
+ },
+ {
+  "id": "en089",
+  "file": "preset_english/e089_the_story_of_a_day.txt",
+  "title": "THE STORY OF A DAY",
+  "author": "Grace E. King"
+ },
+ {
+  "id": "en090",
+  "file": "preset_english/e090_a_strange_story.txt",
+  "title": "A STRANGE STORY",
+  "author": "O. Henry"
+ },
+ {
+  "id": "en091",
+  "file": "preset_english/e091_a_telephonic_conversation.txt",
+  "title": "A TELEPHONIC CONVERSATION",
+  "author": "Mark Twain"
+ },
+ {
+  "id": "en092",
+  "file": "preset_english/e092_there_was_in_florence_a_lady.txt",
+  "title": "THERE WAS IN FLORENCE A LADY",
+  "author": "Jennete Lee"
+ },
+ {
+  "id": "en093",
+  "file": "preset_english/e093_three_questions.txt",
+  "title": "THREE QUESTIONS",
+  "author": "Leo Tolstoy"
+ },
+ {
+  "id": "en094",
+  "file": "preset_english/e094_the_toys_of_peace.txt",
+  "title": "THE TOYS OF PEACE",
+  "author": "Saki"
+ },
+ {
+  "id": "en095",
+  "file": "preset_english/e095_the_unfortunate_bride.txt",
+  "title": "THE UNFORTUNATE BRIDE",
+  "author": "Aphra Behn"
+ },
+ {
+  "id": "en096",
+  "file": "preset_english/e096_the_verdict.txt",
+  "title": "THE VERDICT",
+  "author": "Edith Wharton"
+ },
+ {
+  "id": "en097",
+  "file": "preset_english/e097_the_walking_woman.txt",
+  "title": "THE WALKING WOMAN",
+  "author": "Mary Hunter Austin"
+ },
+ {
+  "id": "en098",
+  "file": "preset_english/e098_wanted_a_cook.txt",
+  "title": "WANTED—A COOK",
+  "author": "Alan Dale"
+ },
+ {
+  "id": "en099",
+  "file": "preset_english/e099_whose_dog.txt",
+  "title": "WHOSE DOG—?",
+  "author": "Frances Gregg"
+ },
+ {
+  "id": "en100",
+  "file": "preset_english/e100_wonderwings.txt",
+  "title": "WONDERWINGS",
+  "author": "Edith Howes"
+ },
+ {
+  "id": "en101",
+  "file": "preset_english/e101_the_yellow_wallpaper.txt",
+  "title": "THE YELLOW WALLPAPER",
+  "author": "Charlotte Perkins Gilman"
+ }
+]
