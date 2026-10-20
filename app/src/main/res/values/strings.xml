@@ -70,6 +70,9 @@
 
     <!-- 五笔打字专项 -->
     <string name="btn_wubi_special">五笔打字专项</string>
+    <string name="btn_english_special">英文练习</string>
+    <string name="english_special_title">英文练习</string>
+    <string name="english_special_hint">共 101 篇经典英文短篇小说，点击开始练习</string>
     <string name="wubi_special_title">五笔打字专项</string>
     <string name="wubi_category_single">单字</string>
     <string name="wubi_category_phrase">词组</string>
