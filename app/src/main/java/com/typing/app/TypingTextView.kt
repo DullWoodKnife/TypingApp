@@ -135,9 +135,9 @@ class TypingTextView @JvmOverloads constructor(
         }
         originalText = original
         userInput = input
-        inputVisible = input.filter { !it.isWhitespace() }
-        cursorVisible = showCursor
         isEnglishContent = detectEnglishContent(original)
+        inputVisible = input.filter { !isSkippableChar(it) }
+        cursorVisible = showCursor
         // 切换内容时清除长按选中状态与已高亮区域，避免残留到其它文章
         clearSelectionInternal()
         highlightedRanges.clear()
@@ -149,6 +149,12 @@ class TypingTextView @JvmOverloads constructor(
     // 内容判定：按汉字占比决定排版模式。
     // 有效字符（非空白）中汉字/中文标点/全角字符占比 >= 30% 时走中文固定网格，否则按英文自然排版。
     // 这样混合文本（少量英文术语+大量中文）仍走中文网格；英文占主体的文本则按英文排版，避免单词被拆开。
+    private fun isSkippableChar(c: Char): Boolean {
+        // 仅换行无法由键盘输入，自动跳过；空格类字符（普通空格/全角空格/薄空格）
+        // 必须由用户手动输入，输入后对应素材字符才会判定为正确并变绿。
+        return c == 10.toChar() || c == 13.toChar()
+    }
+
     private fun detectEnglishContent(s: String): Boolean {
         if (s.isEmpty()) return false
         var cjkCount = 0
@@ -241,7 +247,7 @@ class TypingTextView @JvmOverloads constructor(
             }
             val w = if (isEnglishContent) textPaint.measureText(originalText[i].toString()) else charWidth
             curRight = maxOf(curRight, charXs[i] + w)
-            if (!originalText[i].isWhitespace()) {
+            if (!isSkippableChar(originalText[i])) {
                 rank[i] = vis.size
                 vis.add(i)
             }
@@ -654,14 +660,21 @@ class TypingTextView @JvmOverloads constructor(
         }
     }
 
+    // 字符等价匹配：普通空格、全角空格(U+3000)、薄空格(U+2009)等空格类字符互相等价，
+    // 用户在手机上按一次空格键即可匹配素材中的各类空格。
+    private fun charsMatch(a: Char, b: Char): Boolean {
+        if (a == b) return true
+        return a.isWhitespace() && b.isWhitespace()
+    }
+
     private fun getCharColor(index: Int): Int {
         if (index >= originalText.length) return colorPending
         val c = originalText[index]
-        if (c.isWhitespace()) return colorPending
-        // 输入与正文按“非空白字符”一一对齐：跳过正文分隔空格，第 r 个输入非空白字符对应第 r 个正文字符。
+        if (isSkippableChar(c)) return colorPending
+        // 输入与正文逐字符对齐：仅换行自动跳过；空格需用户输入，空格类字符等价匹配。
         val r = if (index < visibleRank.size) visibleRank[index] else -1
         if (r < 0 || r >= inputVisible.length) return colorPending
         val got = inputVisible[r]
-        return if (got == c) colorCorrect else colorWrong
+        return if (charsMatch(got, c)) colorCorrect else colorWrong
     }
 }
