@@ -156,6 +156,8 @@ class MainActivity : AppCompatActivity() {
 
     // 长按选词弹出的 PopupWindow
     private var wordInfoPopup: PopupWindow? = null
+    // 所有曾创建且未销毁的查词弹窗实例：页面切换/Activity 暂停时统一关闭，避免有实例失去引用后残留
+    private val liveWordPopups = mutableListOf<PopupWindow>()
     // 是否处于“长按查词”态：为 true 时保留 dictHint 释义，避免光标闪烁/输入刷新把它清空
     private var wordLookupActive = false
 
@@ -1073,7 +1075,9 @@ class MainActivity : AppCompatActivity() {
         if (isFinished || text.isEmpty()) {
             wubiHint.text = ""
             if (::wubiDetail.isInitialized) wubiDetail.text = ""
-            dictHint.text = ""
+            // 长按查词期间保留释义：打字打到结尾/输入被清空时也会走到这里，
+            // 若无条件清空，释义就会在长按后“闪一下消失”。
+            if (!wordLookupActive) dictHint.text = ""
             return
         }
         updateWubiHint(text)
@@ -1177,9 +1181,11 @@ class MainActivity : AppCompatActivity() {
 
     // 弹出"添加到生词本"小卡片；长按位置附近
     private fun showWordLookupPopup(word: String, isHanzi: Boolean, anchorX: Int, anchorY: Int) {
-        // 先关闭旧弹窗（其 dismiss 回调会把 wordLookupActive 复位），再进入新的长按查词态，顺序不可颠倒。
-        wordInfoPopup?.dismiss()
+        // 先摘掉旧引用再关闭旧弹窗：dismiss 回调会做“是否仍是当前弹窗”的身份校验，
+        // 所以旧弹窗的关闭不会把下面刚建立的新查词态复位（否则释义会闪一下消失）。
+        val oldPopup = wordInfoPopup
         wordInfoPopup = null
+        if (oldPopup != null && oldPopup.isShowing) oldPopup.dismiss()
         // 进入长按查词态：此后光标闪烁/输入刷新不再清空释义
         wordLookupActive = true
         // 先填充释义
@@ -1219,6 +1225,18 @@ class MainActivity : AppCompatActivity() {
             .coerceIn(margin, (screenW - popupW - margin).coerceAtLeast(margin))
         val y = (loc[1] + anchorY - popupH - (12 * density).toInt())
             .coerceIn(margin, (screenH - popupH - margin).coerceAtLeast(margin))
+        // 监听器必须在 show 之前注册，避免 show 期间被系统关闭时状态未复位而残留实例
+        liveWordPopups.add(pw)
+        pw.setOnDismissListener {
+            liveWordPopups.remove(pw)
+            // 只有“被关闭的正是当前弹窗”时才复位状态，
+            // 避免旧弹窗的关闭回调误伤新弹窗刚建立的查词态。
+            if (wordInfoPopup === pw) {
+                wordInfoPopup = null
+                wordLookupActive = false
+            }
+        }
+        wordInfoPopup = pw
         pw.showAtLocation(typingTextView, Gravity.NO_GRAVITY, x, y)
 
         // 添加到生词本
@@ -1246,19 +1264,28 @@ class MainActivity : AppCompatActivity() {
         // 弹窗的关闭由“点击按钮”或“点击正文其它位置（clearSelection -> onSelectionDismissed）”驱动，
         // 不再在 dismiss 时无条件清空选中，避免复用同一弹窗刷新时误清选中。
         pw.isOutsideTouchable = false
-        pw.setOnDismissListener {
-            wordInfoPopup = null
-            // 弹窗被任意方式关闭（按钮/外部点击）后结束查词态
-            wordLookupActive = false
-        }
-        wordInfoPopup = pw
     }
 
-    // 关闭查词/添加到生词本弹窗
+    // 关闭查词/添加到生词本弹窗：除当前引用外，兜底清理所有仍在显示的实例，
+    // 避免某个实例失去引用后继续悬浮在其它页面上（如返回关卡选择界面仍不消失）。
     private fun dismissWordLookupPopup() {
-        wordInfoPopup?.dismiss()
+        val current = wordInfoPopup
         wordInfoPopup = null
         wordLookupActive = false
+        val pending = liveWordPopups.toList()
+        liveWordPopups.clear()
+        for (popup in pending) {
+            try {
+                if (popup.isShowing) popup.dismiss()
+            } catch (_: Exception) {
+            }
+        }
+        if (current != null && current.isShowing) {
+            try {
+                current.dismiss()
+            } catch (_: Exception) {
+            }
+        }
     }
 
     private fun isClickOnView(v: View, rawX: Int, rawY: Int): Boolean {
@@ -3511,8 +3538,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        wordInfoPopup?.dismiss()
-        wordInfoPopup = null
+        // 统一关闭查词弹窗（含失去引用的历史实例），避免切后台/切页后残留
+        dismissWordLookupPopup()
         try {
             bgPlayer?.takeIf { it.isPlaying }?.pause()
         } catch (e: Exception) {
