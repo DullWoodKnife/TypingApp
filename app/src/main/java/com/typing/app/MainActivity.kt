@@ -139,6 +139,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnImportEn: Button
     private lateinit var btnExportZhWordbook: Button
     private lateinit var btnExportEnWordbook: Button
+    private lateinit var btnViewZhWordbook: Button
+    private lateinit var btnViewEnWordbook: Button
 
     // 音效 & 背景音乐 & 词典数据库
     private val settingsPrefs by lazy { getSharedPreferences("typing_settings", Context.MODE_PRIVATE) }
@@ -451,6 +453,8 @@ class MainActivity : AppCompatActivity() {
         btnImportEn = findViewById(R.id.btn_import_en)
         btnExportZhWordbook = findViewById(R.id.btn_export_zh_wordbook)
         btnExportEnWordbook = findViewById(R.id.btn_export_en_wordbook)
+        btnViewZhWordbook = findViewById(R.id.btn_view_zh_wordbook)
+        btnViewEnWordbook = findViewById(R.id.btn_view_en_wordbook)
 
         navChallenge = findViewById(R.id.nav_challenge)
         navHome = findViewById(R.id.nav_home)
@@ -607,16 +611,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        findViewById<Button>(R.id.btn_restart).setOnClickListener {
-            initPractice()
-        }
-
-        findViewById<Button>(R.id.btn_back_home).setOnClickListener {
-            stopTimer()
-            stopCursorBlink()
-            showPage("home")
-        }
-
         // Typing text view click -> focus hidden input
         typingTextView.setOnClickListener {
             if (!isFinished) {
@@ -757,6 +751,9 @@ class MainActivity : AppCompatActivity() {
             isExportingHanzi = false
             createWordbookLauncher.launch("english_wordbook.txt")
         }
+
+        btnViewZhWordbook.setOnClickListener { showWordbookDialog(true) }
+        btnViewEnWordbook.setOnClickListener { showWordbookDialog(false) }
 
         // Bottom nav
         navHome.setOnClickListener { showPage("home") }
@@ -1355,6 +1352,227 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ===== 生字本 / 生词本：查看与编辑 =====
+
+    // 词条行格式：词 \t 拼音/音标 \t 释义
+    private fun parseWordbookLine(line: String): Array<String> {
+        val parts = line.split("\t")
+        return arrayOf(
+            parts.getOrNull(0) ?: "",
+            parts.getOrNull(1) ?: "",
+            parts.getOrNull(2) ?: ""
+        )
+    }
+
+    private fun composeWordbookLine(word: String, pron: String, def: String): String {
+        return "$word\t$pron\t$def"
+    }
+
+    private fun saveWordbookLines(isHanzi: Boolean, lines: List<String>): Boolean {
+        val file = if (isHanzi) zhWordbookFile else enWordbookFile
+        return try {
+            file.writeText(JSONArray(lines).toString())
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    // 单条词条编辑框（新增/修改共用）
+    private fun showEditWordbookEntry(
+        title: String,
+        word: String,
+        pron: String,
+        def: String,
+        onSave: (String, String, String) -> Unit
+    ) {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), dp(4))
+        }
+        val etWord = EditText(this).apply {
+            hint = getString(R.string.wordbook_field_word)
+            setText(word)
+            setSingleLine(true)
+        }
+        val etPron = EditText(this).apply {
+            hint = getString(R.string.wordbook_field_pron)
+            setText(pron)
+            setSingleLine(true)
+        }
+        val etDef = EditText(this).apply {
+            hint = getString(R.string.wordbook_field_def)
+            setText(def)
+            minLines = 2
+            gravity = Gravity.TOP
+        }
+        box.addView(etWord)
+        box.addView(etPron)
+        box.addView(etDef)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(box)
+            .setPositiveButton(R.string.wordbook_confirm, null)
+            .setNegativeButton(R.string.wordbook_cancel, null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val w = etWord.text.toString().trim()
+                if (w.isEmpty()) {
+                    Toast.makeText(this, R.string.wordbook_word_required, Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                onSave(w, etPron.text.toString().trim(), etDef.text.toString().trim())
+                dialog.dismiss()
+            }
+        }
+        dialog.show()
+    }
+
+    private fun showWordbookDialog(isHanzi: Boolean) {
+        val lines = getWordbookLines(isHanzi).toMutableList()
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(12), dp(20), dp(8))
+        }
+        val countText = TextView(this).apply {
+            textSize = 12f
+            setTextColor(getColor(R.color.text_secondary))
+            setPadding(0, 0, 0, dp(8))
+        }
+        val listContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val scroll = ScrollView(this).apply { addView(listContainer) }
+
+        root.addView(countText)
+        root.addView(
+            scroll,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                (resources.displayMetrics.heightPixels * 0.5f).toInt()
+            )
+        )
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(if (isHanzi) R.string.wordbook_zh_title else R.string.wordbook_en_title)
+            .setView(root)
+            .setPositiveButton(R.string.wordbook_add, null)
+            .setNegativeButton(R.string.wordbook_close, null)
+            .create()
+
+        // 先声明再赋值，避免两个本地函数互相前向引用
+        var rebuild: () -> Unit = {}
+
+        fun persistAndRebuild(updated: List<String>) {
+            if (!saveWordbookLines(isHanzi, updated)) {
+                Toast.makeText(this, R.string.wordbook_save_fail, Toast.LENGTH_SHORT).show()
+                return
+            }
+            lines.clear()
+            lines.addAll(updated)
+            rebuild()
+            renderWordbookButtons()
+        }
+
+        rebuild = {
+            listContainer.removeAllViews()
+            countText.text = getString(R.string.wordbook_count_format, lines.size)
+            if (lines.isEmpty()) {
+                listContainer.addView(TextView(this).apply {
+                    text = getString(R.string.wordbook_empty)
+                    textSize = 13f
+                    setTextColor(getColor(R.color.text_secondary))
+                    setPadding(0, dp(16), 0, dp(16))
+                })
+            } else {
+                lines.forEachIndexed { index, line ->
+                    val parts = parseWordbookLine(line)
+                    val row = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL
+                        setPadding(0, dp(6), 0, dp(6))
+                    }
+                    val texts = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        layoutParams = LinearLayout.LayoutParams(
+                            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                        )
+                        setPadding(0, dp(4), 0, dp(4))
+                    }
+                    texts.addView(TextView(this).apply {
+                        text = if (parts[1].isEmpty()) parts[0] else "${parts[0]}  ${parts[1]}"
+                        textSize = 15f
+                        setTextColor(getColor(R.color.text_primary))
+                        setTypeface(typeface, Typeface.BOLD)
+                    })
+                    if (parts[2].isNotEmpty()) {
+                        texts.addView(TextView(this).apply {
+                            text = parts[2]
+                            textSize = 12f
+                            setTextColor(getColor(R.color.text_secondary))
+                            setPadding(0, dp(2), 0, 0)
+                        })
+                    }
+                    texts.setOnClickListener {
+                        showEditWordbookEntry(
+                            getString(R.string.wordbook_dialog_edit),
+                            parts[0], parts[1], parts[2]
+                        ) { w, p, d ->
+                            val updated = lines.toMutableList()
+                            updated[index] = composeWordbookLine(w, p, d)
+                            persistAndRebuild(updated)
+                            Toast.makeText(this, R.string.wordbook_saved, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    row.addView(texts)
+
+                    val del = TextView(this).apply {
+                        text = "✕"
+                        textSize = 15f
+                        setTextColor(getColor(R.color.text_secondary))
+                        setPadding(dp(12), dp(6), dp(4), dp(6))
+                    }
+                    del.setOnClickListener {
+                        AlertDialog.Builder(this)
+                            .setTitle(R.string.wordbook_delete_title)
+                            .setMessage(getString(R.string.wordbook_delete_msg, parts[0]))
+                            .setPositiveButton(R.string.wordbook_confirm) { _, _ ->
+                                val updated = lines.toMutableList()
+                                updated.removeAt(index)
+                                persistAndRebuild(updated)
+                                Toast.makeText(this, R.string.wordbook_deleted, Toast.LENGTH_SHORT).show()
+                            }
+                            .setNegativeButton(R.string.wordbook_cancel, null)
+                            .show()
+                    }
+                    row.addView(del)
+                    listContainer.addView(row)
+                }
+            }
+        }
+        rebuild()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                showEditWordbookEntry(
+                    getString(
+                        if (isHanzi) R.string.wordbook_dialog_add_zh else R.string.wordbook_dialog_add_en
+                    ),
+                    "", "", ""
+                ) { w, p, d ->
+                    val updated = lines.toMutableList()
+                    updated.add(composeWordbookLine(w, p, d))
+                    persistAndRebuild(updated)
+                    Toast.makeText(this, R.string.wordbook_saved, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        dialog.show()
+    }
+
     // ===== Practice =====
 
     private fun initPractice() {
@@ -1416,18 +1634,13 @@ class MainActivity : AppCompatActivity() {
             hiddenInput.requestFocus()
         }
 
-        // 五笔关卡练习模式：右上角按钮改为"返回"，隐藏底部"重新开始/返回首页"
+        // 五笔关卡练习模式：右上角按钮改为"返回"
+        // 普通练习页底部"重新开始/返回首页"按钮已移除，页面切换由右上角按钮与系统返回承担
         val selectBtn = findViewById<Button>(R.id.btn_select_content)
-        val restartBtn = findViewById<Button>(R.id.btn_restart)
-        val backHomeBtn = findViewById<Button>(R.id.btn_back_home)
         if (isWubiPractice) {
             selectBtn.text = getString(R.string.btn_back)
-            restartBtn.visibility = View.GONE
-            backHomeBtn.visibility = View.GONE
         } else {
             selectBtn.text = getString(R.string.practice_select_content)
-            restartBtn.visibility = View.VISIBLE
-            backHomeBtn.visibility = View.VISIBLE
         }
     }
 
@@ -3117,12 +3330,6 @@ class MainActivity : AppCompatActivity() {
         if (::wubiHint.isInitialized) wubiHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, hintSize)
         if (::wubiDetail.isInitialized) wubiDetail.setTextSize(TypedValue.COMPLEX_UNIT_SP, hintSize - 0.5f)
         if (::dictHint.isInitialized) dictHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, hintSize)
-
-        // 横屏隐藏底部操作按钮行（重开等），避免占用宝贵高度（加保护：绝不隐藏练习页本身）
-        val actionRow = findViewById<View>(R.id.btn_restart)?.parent as? View
-        if (actionRow != null && actionRow !== pagePractice) {
-            actionRow.visibility = if (landscape) View.GONE else View.VISIBLE
-        }
     }
 
     // ===== Modal =====

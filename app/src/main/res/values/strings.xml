@@ -126,4 +126,29 @@
     <string name="settings_export_zh_wordbook">导出中文生字本 (txt)</string>
     <string name="settings_export_en_wordbook">导出英文生词本 (txt)</string>
     <string name="settings_imported_suffix">（已导入）</string>
+
+    <!-- 生字本 / 生词本 查看与编辑 -->
+    <string name="settings_view_zh_wordbook">查看 / 编辑中文生字本（%1$d 条）</string>
+    <string name="settings_view_en_wordbook">查看 / 编辑英文生词本（%1$d 条）</string>
+    <string name="settings_wordbook_hint">生字本 / 生词本由练习时长按选词加入，可在此查看、修改、删除或手动新增。</string>
+    <string name="wordbook_zh_title">中文生字本</string>
+    <string name="wordbook_en_title">英文生词本</string>
+    <string name="wordbook_add">＋ 新增</string>
+    <string name="wordbook_close">关闭</string>
+    <string name="wordbook_empty">还没有词条，可点“新增”手动添加</string>
+    <string name="wordbook_field_word">词语 / 单词</string>
+    <string name="wordbook_field_pron">拼音 / 音标</string>
+    <string name="wordbook_field_def">释义</string>
+    <string name="wordbook_word_required">词语不能为空</string>
+    <string name="wordbook_saved">已保存</string>
+    <string name="wordbook_deleted">已删除</string>
+    <string name="wordbook_save_fail">保存失败</string>
+    <string name="wordbook_dialog_add_zh">新增生字</string>
+    <string name="wordbook_dialog_add_en">新增生词</string>
+    <string name="wordbook_dialog_edit">编辑词条</string>
+    <string name="wordbook_confirm">确定</string>
+    <string name="wordbook_cancel">取消</string>
+    <string name="wordbook_delete_title">删除词条</string>
+    <string name="wordbook_delete_msg">确定删除“%1$s”？</string>
+    <string name="wordbook_count_format">共 %1$d 条</string>
 </resources>
