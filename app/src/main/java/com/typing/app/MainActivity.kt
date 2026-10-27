@@ -1193,7 +1193,9 @@ class MainActivity : AppCompatActivity() {
         val tvHighlight = view.findViewById<TextView>(R.id.popup_highlight)
         val tvCopy = view.findViewById<TextView>(R.id.popup_copy)
         tvAdd.text = "添加到生词本"
-        tvHighlight.text = "高亮"
+        // 选区已被高亮时按钮显示“取消高亮”，点击后撤销高亮；否则显示“高亮”
+        val alreadyHighlighted = typingTextView.isSelectionHighlighted()
+        tvHighlight.text = if (alreadyHighlighted) "取消高亮" else "高亮"
         tvCopy.text = "复制"
 
         val density = resources.displayMetrics.density
@@ -1241,9 +1243,14 @@ class MainActivity : AppCompatActivity() {
             addToWordbook(word, isHanzi)
             pw.dismiss()
         }
-        // 高亮：将所选区域设为黄色高亮
+        // 高亮 / 取消高亮：切换所选区域的黄色高亮状态
         tvHighlight.setOnClickListener {
-            typingTextView.addHighlightFromSelection()
+            val nowHighlighted = typingTextView.toggleHighlightFromSelection()
+            Toast.makeText(
+                this,
+                if (nowHighlighted) "已高亮" else "已取消高亮",
+                Toast.LENGTH_SHORT
+            ).show()
             pw.dismiss()
         }
         // 复制：复制所选文本到系统剪贴板

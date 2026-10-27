@@ -489,6 +489,41 @@ class TypingTextView @JvmOverloads constructor(
         invalidate()
     }
 
+    // 当前选中区域是否已经处于黄色高亮状态（供长按弹窗决定按钮文案与行为）
+    fun isSelectionHighlighted(): Boolean {
+        if (!hasSelection()) return false
+        return highlightedRanges.any { it[0] < selEnd && it[1] > selStart }
+    }
+
+    // 切换当前选中区域的高亮状态，返回切换后是否处于高亮状态。
+    // 已高亮 -> 取消：移除与选区相交的部分，并保留选区左右两侧未选中的残余高亮；
+    // 未高亮 -> 追加一段高亮。随后清除选中并通知宿主关闭查词弹窗。
+    fun toggleHighlightFromSelection(): Boolean {
+        if (!hasSelection()) return false
+        val nowHighlighted: Boolean
+        if (isSelectionHighlighted()) {
+            val remain = ArrayList<IntArray>()
+            for (r in highlightedRanges) {
+                if (r[1] <= selStart || r[0] >= selEnd) {
+                    remain.add(r)
+                } else {
+                    if (r[0] < selStart) remain.add(intArrayOf(r[0], selStart))
+                    if (r[1] > selEnd) remain.add(intArrayOf(selEnd, r[1]))
+                }
+            }
+            highlightedRanges.clear()
+            highlightedRanges.addAll(remain)
+            nowHighlighted = false
+        } else {
+            highlightedRanges.add(intArrayOf(selStart, selEnd))
+            nowHighlighted = true
+        }
+        clearSelectionInternal()
+        invalidate()
+        onSelectionDismissed?.invoke()
+        return nowHighlighted
+    }
+
     // 静默清除选中（不触发回调），供弹窗因外部点击消失时同步清除高亮，避免回调递归
     fun clearSelectionSilently() {
         if (selStart == -1 && selEnd == -1) return
