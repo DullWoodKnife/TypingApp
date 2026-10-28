@@ -699,7 +699,11 @@ class MainActivity : AppCompatActivity() {
         }
         typingTextView.onSelectionDismissed = {
             dismissWordLookupPopup()
-            if (!isFinished) focusInput()
+            // 高亮/取消高亮引起的选区清除：不重新聚焦输入框，
+            // 因而不会弹起软键盘、也不会触发首行滚动复位；光标保持在当前打字位置。
+            if (!typingTextView.selectionDismissedByHighlight) {
+                if (!isFinished) focusInput()
+            }
         }
 
         // Hidden input text watcher
@@ -1793,7 +1797,7 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacks(cursorRunnable)
     }
 
-    private fun focusInput() {
+    private fun focusInput(keepScroll: Boolean = false) {
         hiddenInput.showSoftInputOnFocus = !hasHardKeyboard()
         hiddenInput.requestFocus()
         if (hasHardKeyboard()) {
@@ -1806,8 +1810,9 @@ class MainActivity : AppCompatActivity() {
         if (!isFinished) {
             practiceHint.text = getString(R.string.inputting)
         }
-        // 开始输入前（尚未输入任何字符）：确保第一行完整显示在可视区顶部
-        if (userInput.isEmpty()) {
+        // 开始输入前（尚未输入任何字符）：确保第一行完整显示在可视区顶部。
+        // keepScroll=true 时保持当前滚动位置，避免高亮等非输入操作把视图拉回首行。
+        if (!keepScroll && userInput.isEmpty()) {
             typingScrollView.post { typingScrollView.scrollTo(0, 0) }
         }
     }
