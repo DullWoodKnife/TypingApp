@@ -138,9 +138,10 @@ class TypingTextView @JvmOverloads constructor(
         isEnglishContent = detectEnglishContent(original)
         inputVisible = input.filter { !isSkippableChar(it) }
         cursorVisible = showCursor
-        // 切换内容时清除长按选中状态与已高亮区域，避免残留到其它文章
+        // 切换内容/输入变化时只清除长按选中状态；
+        // 已高亮区域不再在此清空——高亮需要跨输入、跨页面切换持久保留，
+        // 由宿主在内容切换时通过 setHighlightRanges() 按当前文章恢复。
         clearSelectionInternal()
-        highlightedRanges.clear()
         needsLayout = true
         invalidate()
         requestLayout()
@@ -488,6 +489,28 @@ class TypingTextView @JvmOverloads constructor(
         highlightedRanges.clear()
         invalidate()
     }
+
+    // 导出当前所有高亮区间（按 "start,end" 形式），供宿主持久化
+    fun exportHighlightRanges(): List<IntArray> {
+        return highlightedRanges.map { intArrayOf(it[0], it[1]) }
+    }
+
+    // 由宿主在进入/切换文章时恢复该文章的高亮区间。
+    // 传入的区间会按当前正文长度裁剪，避免下标越界。
+    fun setHighlightRanges(ranges: List<IntArray>) {
+        val n = originalText.length
+        highlightedRanges.clear()
+        for (r in ranges) {
+            if (r.size < 2) continue
+            val s = r[0].coerceIn(0, n)
+            val e = r[1].coerceIn(0, n)
+            if (e > s) highlightedRanges.add(intArrayOf(s, e))
+        }
+        invalidate()
+    }
+
+    // 当前是否已存在任意高亮（宿主据此决定是否需要清除持久化数据）
+    fun hasHighlights(): Boolean = highlightedRanges.isNotEmpty()
 
     // 当前选中区域是否已经处于黄色高亮状态（供长按弹窗决定按钮文案与行为）
     fun isSelectionHighlighted(): Boolean {
