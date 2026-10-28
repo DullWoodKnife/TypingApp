@@ -144,6 +144,51 @@ class MainActivity : AppCompatActivity() {
 
     // 音效 & 背景音乐 & 词典数据库
     private val settingsPrefs by lazy { getSharedPreferences("typing_settings", Context.MODE_PRIVATE) }
+
+    // ===== 高亮持久化 =====
+    // 黄色高亮按“内容 id”持久保存（"start,end;start,end"），
+    // 这样打字输入、界面来回切换、退出练习后再进入都能保留高亮，只有手动取消才会移除。
+    private val highlightPrefs by lazy { getSharedPreferences("typing_highlights", Context.MODE_PRIVATE) }
+    // 当前已在打字控件中恢复过高亮的内容 id，避免每次刷新都重设
+    private var highlightContentId = ""
+
+    private fun loadHighlightRanges(contentId: String): List<IntArray> {
+        if (contentId.isEmpty()) return emptyList()
+        val raw = highlightPrefs.getString(contentId, null) ?: return emptyList()
+        val out = ArrayList<IntArray>()
+        for (part in raw.split(";")) {
+            if (part.isEmpty()) continue
+            val bits = part.split(",")
+            if (bits.size != 2) continue
+            val s = bits[0].toIntOrNull() ?: continue
+            val e = bits[1].toIntOrNull() ?: continue
+            if (e > s) out.add(intArrayOf(s, e))
+        }
+        return out
+    }
+
+    private fun saveHighlightRanges(contentId: String) {
+        if (contentId.isEmpty() || !::typingTextView.isInitialized) return
+        val ranges = typingTextView.exportHighlightRanges()
+        if (ranges.isEmpty()) {
+            highlightPrefs.edit().remove(contentId).apply()
+            return
+        }
+        val sb = StringBuilder()
+        for (r in ranges) {
+            if (sb.isNotEmpty()) sb.append(';')
+            sb.append(r[0]).append(',').append(r[1])
+        }
+        highlightPrefs.edit().putString(contentId, sb.toString()).apply()
+    }
+
+    // 内容切换后把该内容已保存的高亮恢复到打字控件
+    private fun restoreHighlightsIfNeeded() {
+        if (!::typingTextView.isInitialized) return
+        if (highlightContentId == currentContentId) return
+        highlightContentId = currentContentId
+        typingTextView.setHighlightRanges(loadHighlightRanges(currentContentId))
+    }
     private var soundPool: SoundPool? = null
     private var clickSoundId = 0
     private var errorSoundId = 0
@@ -1243,9 +1288,11 @@ class MainActivity : AppCompatActivity() {
             addToWordbook(word, isHanzi)
             pw.dismiss()
         }
-        // 高亮 / 取消高亮：切换所选区域的黄色高亮状态
+        // 高亮 / 取消高亮：切换所选区域的黄色高亮状态，并立即持久化到该内容
         tvHighlight.setOnClickListener {
+            val idAtClick = currentContentId
             val nowHighlighted = typingTextView.toggleHighlightFromSelection()
+            saveHighlightRanges(idAtClick)
             Toast.makeText(
                 this,
                 if (nowHighlighted) "已高亮" else "已取消高亮",
@@ -1631,6 +1678,9 @@ class MainActivity : AppCompatActivity() {
 
         val text = content.getString("content")
         typingTextView.setTextData(text, userInput, cursorVisible)
+        // 进入练习即恢复该内容已保存的高亮（强制刷新，保证退出后再进入仍显示）
+        highlightContentId = ""
+        restoreHighlightsIfNeeded()
         updateHints(text)
         updateCharCount(text)
         startCursorBlink()
@@ -1681,6 +1731,8 @@ class MainActivity : AppCompatActivity() {
         val content = getContent(currentContentId) ?: return
         val text = content.getString("content")
         typingTextView.setTextData(text, userInput, cursorVisible)
+        // 输入/界面刷新时补上高亮恢复（同一内容只恢复一次，不会覆盖本次手动改动）
+        restoreHighlightsIfNeeded()
         updateHints(text)
         updateCharCount(text)
         // 仅在输入内容变化时自动滚动到当前行；光标闪烁(keepScroll=true)时保留用户手动滚动位置
