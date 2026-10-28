@@ -86,6 +86,11 @@ class TypingTextView @JvmOverloads constructor(
     var onSelectionChanged: ((start: Int, end: Int) -> Unit)? = null
     var onSelectionDismissed: (() -> Unit)? = null
 
+    // 选区是否因“高亮/取消高亮”而被清除。
+    // 宿主据此避免把高亮操作误当成一次普通的结束选区事件（否则会重新聚焦输入框、
+    // 弹起软键盘并把视图滚回首行）。
+    var selectionDismissedByHighlight = false
+
     private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#40C4FF")
         style = Paint.Style.FILL
@@ -543,7 +548,10 @@ class TypingTextView @JvmOverloads constructor(
         }
         clearSelectionInternal()
         invalidate()
+        // 标记本次选区清除由高亮操作引起，宿主不会因此重新聚焦输入框
+        selectionDismissedByHighlight = true
         onSelectionDismissed?.invoke()
+        selectionDismissedByHighlight = false
         return nowHighlighted
     }
 
