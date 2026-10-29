@@ -452,6 +452,19 @@ class MainActivity : AppCompatActivity() {
         practiceHeader = findViewById(R.id.practice_header)
         practiceStats = findViewById(R.id.practice_stats)
         practiceHintRow = findViewById(R.id.practice_hint_row)
+        // 提示行“点击此地即开始输入”：点击提示区域直接聚焦输入框开始打字
+        practiceHintRow.isClickable = true
+        practiceHintRow.setOnClickListener {
+            if (::typingTextView.isInitialized) typingTextView.clearSelectionSilently()
+            if (!isFinished) focusInput()
+        }
+        if (::practiceHint.isInitialized) {
+            practiceHint.isClickable = true
+            practiceHint.setOnClickListener {
+                if (::typingTextView.isInitialized) typingTextView.clearSelectionSilently()
+                if (!isFinished) focusInput()
+            }
+        }
         statTimeLabel = findViewById(R.id.stat_time_label)
         statProgressLabel = findViewById(R.id.stat_progress_label)
         statSpeedLabel = findViewById(R.id.stat_speed_label)
@@ -1312,7 +1325,15 @@ class MainActivity : AppCompatActivity() {
                 cm.setPrimaryClip(ClipData.newPlainText("typing", sel))
                 Toast.makeText(this, "已复制", Toast.LENGTH_SHORT).show()
             }
+            // 复制后立即取消选中态：选区不应继续以蓝色选中样式保留，
+            // 否则切到其它应用再回来时残留选区会吞掉第一次点击（表现为“点一下就跳过首行”）。
+            typingTextView.clearSelectionSilently()
             pw.dismiss()
+            // 复制属于非输入操作：回到尚未输入时的首行视图，
+            // 这样从其它应用返回后看到的是正文开头，而不是复制所在行。
+            if (userInput.isEmpty()) {
+                typingScrollView.post { typingScrollView.scrollTo(0, 0) }
+            }
         }
 
         // 非焦点 + 非外部可触摸：不拦截弹窗外的触摸，避免吞掉选中手柄的按下事件（否则无法拖动扩选）。
