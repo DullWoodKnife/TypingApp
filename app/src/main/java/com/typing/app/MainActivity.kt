@@ -66,6 +66,9 @@ class MainActivity : AppCompatActivity() {
     private var userInput = ""
     private var isRunning = false
     private var isFinished = false
+    // 是否已进入输入模式：进入练习页默认 false（阅读态），
+    // 只有点击提示行「点击此地即开始输入」才置为 true 并弹出软键盘。
+    private var inputModeActive = false
     private var isComposing = false
     private var isExportingHanzi = false
 
@@ -454,16 +457,10 @@ class MainActivity : AppCompatActivity() {
         practiceHintRow = findViewById(R.id.practice_hint_row)
         // 提示行“点击此地即开始输入”：点击提示区域直接聚焦输入框开始打字
         practiceHintRow.isClickable = true
-        practiceHintRow.setOnClickListener {
-            if (::typingTextView.isInitialized) typingTextView.clearSelectionSilently()
-            if (!isFinished) focusInput()
-        }
+        practiceHintRow.setOnClickListener { enterInputMode() }
         if (::practiceHint.isInitialized) {
             practiceHint.isClickable = true
-            practiceHint.setOnClickListener {
-                if (::typingTextView.isInitialized) typingTextView.clearSelectionSilently()
-                if (!isFinished) focusInput()
-            }
+            practiceHint.setOnClickListener { enterInputMode() }
         }
         statTimeLabel = findViewById(R.id.stat_time_label)
         statProgressLabel = findViewById(R.id.stat_progress_label)
@@ -670,17 +667,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Typing text view click -> focus hidden input
+        // 阅读态：点击正文区域不进入输入模式（避免误触弹键盘）。
+        // 进入输入模式的唯一入口是提示行「点击此地即开始输入」。
         typingTextView.setOnClickListener {
-            if (!isFinished) {
-                focusInput()
-            }
+            // 仅消费点击事件，不触发输入
         }
 
-        // 练习页任意空白处点击 -> 聚焦输入框，便于直接开始打字
         pagePractice.setOnClickListener {
-            if (!isFinished && pagePractice.visibility == View.VISIBLE) {
-                focusInput()
-            }
+            // 阅读态：点击页面空白处不再聚焦输入框
         }
 
         // 长按打字区：选中最近的汉字或英文单词，弹出查词 PopupWindow
@@ -712,11 +706,8 @@ class MainActivity : AppCompatActivity() {
         }
         typingTextView.onSelectionDismissed = {
             dismissWordLookupPopup()
-            // 高亮/取消高亮引起的选区清除：不重新聚焦输入框，
-            // 因而不会弹起软键盘、也不会触发首行滚动复位；光标保持在当前打字位置。
-            if (!typingTextView.selectionDismissedByHighlight) {
-                if (!isFinished) focusInput()
-            }
+            // 选区结束（复制/高亮/点空白）都不再自动聚焦输入框：
+            // 阅读态下长按操作不应唤起软键盘，光标也不应重新闪烁。
         }
 
         // Hidden input text watcher
@@ -1699,7 +1690,9 @@ class MainActivity : AppCompatActivity() {
         practiceHint.text = getString(R.string.practice_hint)
 
         hiddenInput.setText("")
-        cursorVisible = true
+        // 进入练习页默认阅读态：光标不显示、不闪烁、不聚焦输入框
+        inputModeActive = false
+        cursorVisible = false
 
         val text = content.getString("content")
         typingTextView.setTextData(text, userInput, cursorVisible)
@@ -1708,13 +1701,11 @@ class MainActivity : AppCompatActivity() {
         restoreHighlightsIfNeeded()
         updateHints(text)
         updateCharCount(text)
-        startCursorBlink()
+        stopCursorBlink()
 
-        // 蓝牙/物理键盘已连接：禁止软键盘弹出（避免输入法候选栏占用练习区）并自动聚焦，进入练习页无需点屏幕即可直接打字
+        // 阅读态：不自动聚焦、不弹软键盘，只可阅读与长按（复制/高亮/加生词本）。
+        // 输入模式只能通过点击提示行「点击此地即开始输入」进入。
         applyKeyboardMode()
-        if (hasHardKeyboard()) {
-            hiddenInput.requestFocus()
-        }
 
         // 五笔关卡练习模式：右上角按钮改为"返回"
         // 普通练习页底部"重新开始/返回首页"按钮已移除，页面切换由右上角按钮与系统返回承担
@@ -1816,6 +1807,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopCursorBlink() {
         handler.removeCallbacks(cursorRunnable)
+    }
+
+    // 进入输入模式：阅读态 -> 输入态（弹软键盘、光标开始闪烁）
+    private fun enterInputMode() {
+        if (isFinished) return
+        if (::typingTextView.isInitialized) typingTextView.clearSelectionSilently()
+        inputModeActive = true
+        cursorVisible = true
+        updateTextDisplay(keepScroll = true)
+        startCursorBlink()
+        focusInput(keepScroll = true)
     }
 
     private fun focusInput(keepScroll: Boolean = false) {
@@ -3312,7 +3314,8 @@ class MainActivity : AppCompatActivity() {
         applyOrientationLayout()
         // 蓝牙键盘连接/断开时同步软键盘模式：连接时禁止软键盘弹出，断开时恢复
         applyKeyboardMode()
-        if (pagePractice.visibility == View.VISIBLE && !isFinished) {
+        // 仅在已进入输入模式时才响应键盘插拔；阅读态下不聚焦、不弹软键盘
+        if (pagePractice.visibility == View.VISIBLE && !isFinished && inputModeActive) {
             if (hasHardKeyboard()) {
                 hideKeyboard()
                 hiddenInput.requestFocus()
