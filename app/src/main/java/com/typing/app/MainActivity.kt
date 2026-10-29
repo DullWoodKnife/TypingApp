@@ -1318,12 +1318,15 @@ class MainActivity : AppCompatActivity() {
             }
             // 复制后立即取消选中态：选区不应继续以蓝色选中样式保留，
             // 否则切到其它应用再回来时残留选区会吞掉第一次点击（表现为“点一下就跳过首行”）。
+            // 复制属于非输入操作：视图必须停留在当前被复制的文本所在行，不能跳回首行。
+            // 先记住当前滚动位置，清选区/关弹窗后原样恢复，保证阅读位置不被打断。
+            val savedScrollY = typingScrollView.scrollY
             typingTextView.clearSelectionSilently()
             pw.dismiss()
-            // 复制属于非输入操作：回到尚未输入时的首行视图，
-            // 这样从其它应用返回后看到的是正文开头，而不是复制所在行。
-            if (userInput.isEmpty()) {
-                typingScrollView.post { typingScrollView.scrollTo(0, 0) }
+            typingScrollView.post {
+                if (typingScrollView.scrollY != savedScrollY) {
+                    typingScrollView.scrollTo(0, savedScrollY)
+                }
             }
         }
 
