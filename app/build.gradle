@@ -11,8 +11,8 @@ android {
         applicationId "com.typing.app"
         minSdk 24
         targetSdk 34
-        versionCode 88
-        versionName "1.87"
+        versionCode 89
+        versionName "1.88"
     }
 
     signingConfigs {
