@@ -285,6 +285,16 @@ class MainActivity : AppCompatActivity() {
     private var customArticleEditId: String? = null
     private var customArticleOpenLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>? = null
 
+    // ===== 英文练习：自定义文章 =====
+    private lateinit var pageEnglishCustomArticles: View
+    private lateinit var pageEnglishCustomArticleEdit: View
+    private lateinit var englishCustomArticlesContainer: LinearLayout
+    private lateinit var englishCustomArticleInputTitle: EditText
+    private lateinit var englishCustomArticleInputContent: EditText
+    private lateinit var englishCustomArticleEditTitle: TextView
+    private var englishCustomArticleEditId: String? = null
+    private var englishCustomArticleOpenLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -304,6 +314,15 @@ class MainActivity : AppCompatActivity() {
         ) { uri ->
             if (uri != null) {
                 importCustomArticleFromUri(uri)
+            }
+        }
+
+        // 注册英文自定义文章导入文件选择
+        englishCustomArticleOpenLauncher = registerForActivityResult(
+            ActivityResultContracts.OpenDocument()
+        ) { uri ->
+            if (uri != null) {
+                importEnglishCustomArticleFromUri(uri)
             }
         }
 
@@ -529,6 +548,13 @@ class MainActivity : AppCompatActivity() {
         customArticleInputTitle = findViewById(R.id.custom_article_input_title)
         customArticleInputContent = findViewById(R.id.custom_article_input_content)
         customArticleEditTitle = findViewById(R.id.custom_article_edit_title)
+
+        pageEnglishCustomArticles = findViewById(R.id.page_english_custom_articles)
+        pageEnglishCustomArticleEdit = findViewById(R.id.page_english_custom_article_edit)
+        englishCustomArticlesContainer = findViewById(R.id.english_custom_articles_container)
+        englishCustomArticleInputTitle = findViewById(R.id.english_custom_article_input_title)
+        englishCustomArticleInputContent = findViewById(R.id.english_custom_article_input_content)
+        englishCustomArticleEditTitle = findViewById(R.id.english_custom_article_edit_title)
     }
 
     private fun setupListeners() {
@@ -643,6 +669,42 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.btn_custom_article_save).setOnClickListener {
             saveCustomArticle()
+        }
+
+        // ===== 英文练习：自定义文章入口与页面按钮 =====
+        findViewById<Button>(R.id.btn_english_custom_articles).setOnClickListener {
+            showPage("englishCustomArticles")
+            renderEnglishCustomArticles()
+        }
+        findViewById<Button>(R.id.btn_english_custom_articles_back).setOnClickListener {
+            showPage("englishSpecial")
+            renderEnglishList()
+        }
+        findViewById<Button>(R.id.btn_english_custom_article_import).setOnClickListener {
+            englishCustomArticleOpenLauncher?.launch(
+                arrayOf(
+                    "text/plain",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/msword",
+                    "application/pdf"
+                )
+            )
+        }
+        findViewById<Button>(R.id.btn_english_custom_article_new).setOnClickListener {
+            openEnglishCustomArticleEdit(null)
+        }
+        findViewById<Button>(R.id.btn_english_custom_article_help).setOnClickListener {
+            showModal(
+                getString(R.string.english_custom_article_help_title),
+                getString(R.string.english_custom_article_help_body)
+            )
+        }
+        findViewById<Button>(R.id.btn_english_custom_article_edit_cancel).setOnClickListener {
+            showPage("englishCustomArticles")
+            renderEnglishCustomArticles()
+        }
+        findViewById<Button>(R.id.btn_english_custom_article_save).setOnClickListener {
+            saveEnglishCustomArticle()
         }
 
         // 五笔专项：关卡返回
@@ -846,6 +908,8 @@ class MainActivity : AppCompatActivity() {
         pageWubiLevels.visibility = View.GONE
         pageCustomArticles.visibility = View.GONE
         pageCustomArticleEdit.visibility = View.GONE
+        pageEnglishCustomArticles.visibility = View.GONE
+        pageEnglishCustomArticleEdit.visibility = View.GONE
 
         when (pageId) {
             "home" -> pageHome.visibility = View.VISIBLE
@@ -860,6 +924,8 @@ class MainActivity : AppCompatActivity() {
             "wubiLevels" -> pageWubiLevels.visibility = View.VISIBLE
             "customArticles" -> pageCustomArticles.visibility = View.VISIBLE
             "customArticleEdit" -> pageCustomArticleEdit.visibility = View.VISIBLE
+            "englishCustomArticles" -> pageEnglishCustomArticles.visibility = View.VISIBLE
+            "englishCustomArticleEdit" -> pageEnglishCustomArticleEdit.visibility = View.VISIBLE
             "settings" -> {
                 pageSettings.visibility = View.VISIBLE
                 renderSettingsImportButtons()
@@ -878,6 +944,7 @@ class MainActivity : AppCompatActivity() {
         when (practiceReturnPage) {
             "wubiLevels" -> renderWubiLevels()
             "customArticles" -> renderCustomArticles()
+            "englishCustomArticles" -> renderEnglishCustomArticles()
             "englishSpecial" -> renderEnglishList()
             "contentList" -> renderContentList()
         }
@@ -2247,6 +2314,15 @@ class MainActivity : AppCompatActivity() {
     // ===== Content Management =====
 
     private fun getContent(id: String): JSONObject? {
+        // 英文练习：自定义文章（id 以 en_custom_article_ 开头，须先于英文短篇分支判断）
+        if (id.startsWith("en_custom_article_")) {
+            val enArts = appData.optJSONArray("englishCustomArticles") ?: return null
+            for (i in 0 until enArts.length()) {
+                val c = enArts.getJSONObject(i)
+                if (c.optString("id") == id) return c
+            }
+            return null
+        }
         // 英文练习专项：按 id 从 assets/preset_english 读取，不写入 contents 列表
         if (id.startsWith("en")) {
             return getEnglishStory(id)
@@ -2412,6 +2488,320 @@ class MainActivity : AppCompatActivity() {
     }
 
     // 渲染英文短篇小说列表：按短篇名逐条展示
+    // ===== 英文练习：自定义文章（数据 / 规范化 / 渲染 / 编辑 / 导入） =====
+
+    private fun getEnglishCustomArticles(): JSONArray {
+        return appData.optJSONArray("englishCustomArticles") ?: JSONArray()
+    }
+
+    // 计算单个字符应映射成的英文标点；返回 0 表示该字符不是需要转换的标点
+    private fun englishPunctFor(code: Int): Char {
+        return when (code) {
+            0xFF0C, 0x3001, 0xFF64, 0xFE50, 0xFE51 -> ','
+            0xFF0E, 0x3002, 0xFF61, 0xFE52 -> '.'
+            0xFF1B -> ';'
+            0xFF1A, 0xFE55 -> ':'
+            0xFF01, 0xFE15 -> '!'
+            0xFF1F, 0xFE56 -> '?'
+            0xFF08, 0xFE59 -> '('
+            0xFF09, 0xFE5A -> ')'
+            0x3010, 0x3014, 0xFF3B, 0x3016 -> '['
+            0x3011, 0x3015, 0xFF3D, 0x3017 -> ']'
+            0x300A, 0x3008, 0x2329, 0xFF1C -> '<'
+            0x300B, 0x3009, 0x232A, 0xFF1E -> '>'
+            0x300C, 0x300D, 0x300E, 0x300F, 0x201C, 0x201D, 0x201E, 0xFF02, 0x301D, 0x301E -> 0x22.toChar()
+            0x2018, 0x2019, 0x201A, 0xFF07, 0x301F -> 0x27.toChar()
+            0x2014, 0x2013, 0xFF0D, 0x2500, 0x2501, 0x2212, 0x3010 -> '-'
+            0x2026, 0x2025 -> '.'
+            0xFF5E, 0x301C -> '~'
+            0x00B7, 0xFF65, 0x2022, 0x2027, 0x30FB -> '.'
+            0xFF0F, 0x2571 -> '/'
+            0xFF3C, 0x2572 -> 0x5C.toChar()
+            0xFF20 -> '@'
+            0xFF03 -> '#'
+            0xFF05 -> '%'
+            0xFF06 -> '&'
+            0xFF0A -> '*'
+            0xFF0B -> '+'
+            0xFF1D -> '='
+            0xFF04 -> '$'
+            0xFF5B -> '{'
+            0xFF5D -> '}'
+            0x3000, 0x00A0, 0x2002, 0x2003, 0x2009, 0x202F -> ' '
+            else -> 0.toChar()
+        }
+    }
+
+    // 英文文本规范化：任何来源（导入文件 / 粘贴新建）在显示到页面前都走这里
+    // 1) 统一转为 UTF-8 语义的文本（导入按 UTF-8 解码，写入 SharedPreferences 亦为 UTF-8）
+    // 2) 全角字母数字与兼容字符归一为半角
+    // 3) 中文与全角标点全部转为英文标点
+    // 4) 去除表情符号、汉字、控制字符等非常规字符
+    private fun normalizeEnglishText(raw: String): String {
+        if (raw.isEmpty()) return ""
+        val normalized = try {
+            java.text.Normalizer.normalize(raw, java.text.Normalizer.Form.NFKC)
+        } catch (e: Exception) {
+            raw
+        }
+
+        val sb = StringBuilder(normalized.length)
+        for (ch in normalized) {
+            val mapped = englishPunctFor(ch.code)
+            if (mapped != 0.toChar()) {
+                sb.append(mapped)
+                continue
+            }
+            when {
+                ch.code == 10 || ch.code == 13 || ch.code == 9 -> sb.append(' ')
+                ch.code in 32..126 -> sb.append(ch)
+                ch.code in 0x00C0..0x024F -> sb.append(ch)
+                else -> Unit
+            }
+        }
+
+        // 连续空白合并为单个空格，并去掉首尾空白
+        val out = StringBuilder(sb.length)
+        var lastSpace = false
+        for (ch in sb) {
+            if (ch == ' ') {
+                if (!lastSpace) out.append(' ')
+                lastSpace = true
+            } else {
+                out.append(ch)
+                lastSpace = false
+            }
+        }
+        return out.toString().trim()
+    }
+
+    private fun renderEnglishCustomArticles() {
+        if (!::englishCustomArticlesContainer.isInitialized) return
+        englishCustomArticlesContainer.removeAllViews()
+        val arts = getEnglishCustomArticles()
+        if (arts.length() == 0) {
+            val empty = TextView(this).apply {
+                text = getString(R.string.english_custom_articles_empty)
+                setTextColor(Color.parseColor("#999999"))
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setPadding(dp(24), dp(40), dp(24), dp(40))
+            }
+            englishCustomArticlesContainer.addView(empty)
+            return
+        }
+        for (i in 0 until arts.length()) {
+            val c = arts.getJSONObject(i)
+            val title = c.optString("title", "Untitled")
+            val content = c.optString("content", "")
+
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(16), dp(14), dp(16), dp(14))
+            }
+            val titleTv = TextView(this).apply {
+                text = "${i + 1}. $title"
+                textSize = 15f
+                setTextColor(Color.parseColor("#CC000000"))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            val metaTv = TextView(this).apply {
+                text = getString(R.string.english_chars_count, content.length)
+                textSize = 12f
+                setTextColor(Color.parseColor("#80000000"))
+                setPadding(dp(8), 0, dp(8), 0)
+            }
+            row.addView(titleTv)
+            row.addView(metaTv)
+            row.setOnClickListener { startEnglishCustomArticlePractice(c.optString("id")) }
+            row.setOnLongClickListener {
+                showEnglishCustomArticleActions(c.optString("id"), c.optString("title", ""))
+                true
+            }
+            englishCustomArticlesContainer.addView(row)
+
+            val divider = View(this).apply { setBackgroundColor(Color.parseColor("#14000000")) }
+            englishCustomArticlesContainer.addView(
+                divider,
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1)
+            )
+        }
+    }
+
+    private fun startEnglishCustomArticlePractice(id: String) {
+        if (getContent(id) == null) return
+        currentContentId = id
+        practiceMode = "normal"
+        isWubiPractice = true
+        practiceReturnPage = "englishCustomArticles"
+        showPage("practice")
+        initPractice()
+    }
+
+    private fun openEnglishCustomArticleEdit(id: String?) {
+        englishCustomArticleEditId = id
+        if (id == null) {
+            englishCustomArticleEditTitle.text = getString(R.string.custom_article_new)
+            englishCustomArticleInputTitle.setText("")
+            englishCustomArticleInputContent.setText("")
+        } else {
+            val c = getContent(id)
+            if (c == null) {
+                englishCustomArticleEditId = null
+                englishCustomArticleEditTitle.text = getString(R.string.custom_article_new)
+                englishCustomArticleInputTitle.setText("")
+                englishCustomArticleInputContent.setText("")
+            } else {
+                englishCustomArticleEditTitle.text = getString(R.string.custom_article_edit)
+                englishCustomArticleInputTitle.setText(c.optString("title", ""))
+                englishCustomArticleInputContent.setText(c.optString("content", ""))
+            }
+        }
+        showPage("englishCustomArticleEdit")
+    }
+
+    private fun saveEnglishCustomArticle() {
+        val title = englishCustomArticleInputTitle.text.toString().trim()
+        val raw = englishCustomArticleInputContent.text.toString()
+        if (title.isEmpty() || raw.isBlank()) {
+            showModal(getString(R.string.title_cannot_empty), getString(R.string.msg_title_content_empty))
+            return
+        }
+        // 显示/保存前统一规范化：UTF-8、英文标点、去非常规字符
+        val content = normalizeEnglishText(raw)
+        if (content.isBlank()) {
+            showModal(getString(R.string.title_cannot_empty), getString(R.string.english_custom_article_no_valid))
+            return
+        }
+        val arts = getEnglishCustomArticles()
+        val editId = englishCustomArticleEditId
+        if (editId != null) {
+            for (i in 0 until arts.length()) {
+                if (arts.getJSONObject(i).optString("id") == editId) {
+                    arts.getJSONObject(i).put("title", title)
+                    arts.getJSONObject(i).put("content", content)
+                    break
+                }
+            }
+        } else {
+            val obj = JSONObject()
+            obj.put("id", "en_custom_article_${System.currentTimeMillis()}_${(Math.random() * 10000).toInt().toString(36)}")
+            obj.put("title", title)
+            obj.put("content", content)
+            obj.put("createdAt", System.currentTimeMillis())
+            arts.put(obj)
+        }
+        appData.put("englishCustomArticles", arts)
+        saveData()
+        showPage("englishCustomArticles")
+        renderEnglishCustomArticles()
+        Toast.makeText(this, getString(R.string.english_custom_article_saved), Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showEnglishCustomArticleActions(id: String, title: String) {
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(arrayOf("编辑", "删除")) { _, which ->
+                when (which) {
+                    0 -> openEnglishCustomArticleEdit(id)
+                    1 -> deleteEnglishCustomArticle(id)
+                }
+            }
+            .show()
+    }
+
+    private fun deleteEnglishCustomArticle(id: String) {
+        AlertDialog.Builder(this)
+            .setMessage(getString(R.string.custom_article_delete_confirm))
+            .setPositiveButton("确定") { _, _ ->
+                val arts = getEnglishCustomArticles()
+                val kept = JSONArray()
+                for (i in 0 until arts.length()) {
+                    val c = arts.getJSONObject(i)
+                    if (c.optString("id") != id) kept.put(c)
+                }
+                appData.put("englishCustomArticles", kept)
+                saveData()
+                renderEnglishCustomArticles()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    // 导入英文自定义文章：读取文件 → 按 UTF-8 解码 → 规范化 → 再显示到页面
+    private fun importEnglishCustomArticleFromUri(uri: Uri) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val mime = contentResolver.getType(uri)
+                val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (bytes == null || bytes.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, getString(R.string.custom_article_read_fail), Toast.LENGTH_SHORT).show()
+                    }
+                    return@launch
+                }
+                if (bytes.size > 5 * 1024 * 1024) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, getString(R.string.english_custom_article_too_large), Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+
+                val isPdf = mime == "application/pdf" ||
+                        (bytes.size >= 4 && bytes[0].toInt() == 0x25 && bytes[1].toInt() == 0x50 &&
+                                bytes[2].toInt() == 0x44 && bytes[3].toInt() == 0x46)
+
+                val text = when {
+                    isPdf -> extractPdfText(bytes)
+                    mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+                            uri.toString().endsWith(".docx") -> extractDocxText(bytes)
+                    else -> decodeWithFallback(bytes)
+                }
+
+                if (text.isBlank()) {
+                    withContext(Dispatchers.Main) {
+                        val msg = if (isPdf) getString(R.string.english_custom_article_pdf_fail)
+                        else getString(R.string.custom_article_read_fail)
+                        Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+
+                // 关键：显示在页面前完成规范化（UTF-8 / 英文标点 / 去非常规字符）
+                val normalized = normalizeEnglishText(text)
+                if (normalized.isBlank()) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, getString(R.string.english_custom_article_no_valid), Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+
+                val title = queryFileName(uri).ifBlank { getString(R.string.english_custom_article_default_title) }
+                val arts = getEnglishCustomArticles()
+                val obj = JSONObject()
+                obj.put("id", "en_custom_article_${System.currentTimeMillis()}_${(Math.random() * 10000).toInt().toString(36)}")
+                obj.put("title", title)
+                obj.put("content", normalized)
+                obj.put("createdAt", System.currentTimeMillis())
+                arts.put(obj)
+                appData.put("englishCustomArticles", arts)
+                saveData()
+
+                withContext(Dispatchers.Main) {
+                    showPage("englishCustomArticles")
+                    renderEnglishCustomArticles()
+                    Toast.makeText(this@MainActivity, getString(R.string.english_custom_article_saved), Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, getString(R.string.custom_article_read_fail), Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     private fun renderEnglishList() {
         if (!::englishListContainer.isInitialized) return
         englishListContainer.removeAllViews()
@@ -3471,6 +3861,14 @@ class MainActivity : AppCompatActivity() {
             pageCustomArticleEdit.visibility == View.VISIBLE -> {
                 showPage("customArticles")
                 renderCustomArticles()
+            }
+            pageEnglishCustomArticleEdit.visibility == View.VISIBLE -> {
+                showPage("englishCustomArticles")
+                renderEnglishCustomArticles()
+            }
+            pageEnglishCustomArticles.visibility == View.VISIBLE -> {
+                showPage("englishSpecial")
+                renderEnglishList()
             }
             else -> super.onBackPressed()
         }

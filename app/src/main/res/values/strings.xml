@@ -92,6 +92,7 @@
     <string name="custom_articles_title">自定义文章</string>
     <string name="custom_article_import">导入</string>
     <string name="custom_article_new">新建</string>
+    <string name="custom_article_edit">编辑文章</string>
     <string name="custom_article_help">\?帮助</string>
     <string name="custom_article_save">保存</string>
     <string name="custom_articles_empty">暂无自定义文章，点击上方"导入"或"新建"添加</string>
@@ -104,6 +105,19 @@
     <string name="custom_article_saved">已保存</string>
     <string name="custom_article_delete_confirm">确定要删除此文章吗？</string>
     <string name="custom_article_read_fail">文件读取失败</string>
+    <string name="english_custom_articles">自定义文章</string>
+    <string name="english_custom_articles_title">英文自定义文章</string>
+    <string name="english_custom_articles_empty">暂无英文自定义文章，点击上方"导入"或"新建"添加</string>
+    <string name="english_custom_article_help_title">英文自定义文章说明</string>
+    <string name="english_custom_article_help_body">1、点击"导入"可导入 txt、Word(.docx)、PDF 文件中的英文内容\n2、点击"新建"粘贴或输入英文内容\n3、显示前会自动处理：统一转为 UTF-8 编码、中文标点全部转为英文标点、去除表情符号与其它非常规字符\n4、点击文章即可进入英文打字练习，长按文章可编辑或删除</string>
+    <string name="english_custom_article_saved">已保存（文本已按英文规范清理）</string>
+    <string name="english_chars_count">%1$d 字符</string>
+    <string name="english_custom_article_no_valid">文件中没有可用的英文内容，请更换文件或手动新建</string>
+    <string name="english_custom_article_too_large">文件过大（超过 5MB），请换用较小的文件</string>
+    <string name="english_custom_article_pdf_fail">该 PDF 无法提取文本（可能是扫描版），请换用 txt 或 docx</string>
+    <string name="english_custom_article_default_title">导入的英文文章</string>
+    <string name="english_custom_article_edit">编辑文章</string>
+    <string name="english_custom_article_normalized">已自动转为 UTF-8、统一英文标点并去除非常规字符</string>
 
     <!-- 设置页 -->
     <string name="btn_settings">设置</string>
