@@ -778,6 +778,8 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
                 if (isFinished) return
+                // 由自身同步输入框内容引起的变化直接忽略，避免重复处理与递归
+                if (isSyncingHiddenInput) return
                 // 用 SPAN_COMPOSING 动态检测拼音/五笔 IME 组合输入：
                 // 组合未提交前（如 "gu"）只是临时预览，不作为真实输入，避免提前报红。
                 val composing = if (s is Spanned) {
@@ -1766,6 +1768,8 @@ class MainActivity : AppCompatActivity() {
 
         val text = content.getString("content")
         typingTextView.setTextData(text, userInput, cursorVisible)
+        // 阅读态就按内容选好 inputType：英文禁用候选联想，避免空格被候选吞掉、快速输入丢字
+        applyInputTypeForContent()
         // 进入练习即恢复该内容已保存的高亮（强制刷新，保证退出后再进入仍显示）
         highlightContentId = ""
         restoreHighlightsIfNeeded()
@@ -1808,6 +1812,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     // 刷新“字数:xxx”（当前练习内容的可输入字数）
+    // 当前正文缓存：每次按键都会用到，避免重复 getContent（JSON 扫描 / 资源读取）
+    private var cachedContentId: String? = null
+    private var cachedContentText: String = ""
+
+    private fun currentContentText(): String? {
+        if (cachedContentId == currentContentId && cachedContentText.isNotEmpty()) {
+            return cachedContentText
+        }
+        val obj = getContent(currentContentId) ?: return null
+        val t = obj.optString("content", "")
+        if (t.isEmpty()) return null
+        cachedContentId = currentContentId
+        cachedContentText = t
+        return t
+    }
+
     private fun updateCharCount(text: String) {
         if (!::charCount.isInitialized) return
         charCount.text = getString(R.string.char_count_format, inputableCount(text))
@@ -1828,9 +1848,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun autoScrollToCurrent() {
-        val content = getContent(currentContentId) ?: return
-        val text = content.getString("content")
         if (isFinished) return
+        val text = currentContentText() ?: return
 
         // 光标对应的正文下标（按非空白字符对齐，与光标/五笔编码一致）
         val caretIdx = currentHintIndex(text)
@@ -1880,12 +1899,40 @@ class MainActivity : AppCompatActivity() {
     }
 
     // 进入输入模式：阅读态 -> 输入态（弹软键盘、光标开始闪烁）
+    // 英文练习关闭输入法联想与候选：候选栏会吞掉空格（空格变成选中候选），
+    // 组合态还会在快速输入时丢字母。VISIBLE_PASSWORD + NO_SUGGESTIONS 保证逐键直接可见。
+    private fun applyInputTypeForContent() {
+        if (!::hiddenInput.isInitialized) return
+        val english = ::typingTextView.isInitialized && typingTextView.isEnglishMode()
+        val newType = if (english) {
+            android.text.InputType.TYPE_CLASS_TEXT or
+                    android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or
+                    android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        } else {
+            android.text.InputType.TYPE_CLASS_TEXT or
+                    android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                    android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        }
+        if (hiddenInput.inputType != newType) {
+            isSyncingHiddenInput = true
+            try {
+                hiddenInput.inputType = newType
+                hiddenInput.setSelection(hiddenInput.text.length)
+            } catch (_: Exception) {
+            } finally {
+                isSyncingHiddenInput = false
+            }
+        }
+    }
+
     private fun enterInputMode() {
         if (isFinished) return
         if (::typingTextView.isInitialized) typingTextView.clearSelectionSilently()
         inputModeActive = true
         cursorVisible = true
         updateTextDisplay(keepScroll = true)
+        // 必须在正文加载之后：需按 setTextData 判定的排版模式选择 inputType
+        applyInputTypeForContent()
         startCursorBlink()
         focusInput(keepScroll = true)
     }
@@ -1907,6 +1954,28 @@ class MainActivity : AppCompatActivity() {
         // keepScroll=true 时保持当前滚动位置，避免高亮等非输入操作把视图拉回首行。
         if (!keepScroll && userInput.isEmpty()) {
             typingScrollView.post { typingScrollView.scrollTo(0, 0) }
+        }
+    }
+
+    // 文本变化回调内同步输入框内容时置位，避免递归触发监听
+    private var isSyncingHiddenInput = false
+
+    // 在 TextWatcher 回调里不要用 setText 重置输入框：那会清掉输入法的组合态，
+    // 快速输入时会丢字母、丢空格，甚至与还在处理的按键事件互相覆盖而乱序。
+    // 这里改为就地删除多余字符，不做全量替换。
+    private fun truncateHiddenInputSilently(target: CharSequence) {
+        val editable = hiddenInput.text ?: return
+        if (editable.toString() == target.toString()) return
+        isSyncingHiddenInput = true
+        try {
+            if (editable.length > target.length) {
+                editable.delete(target.length, editable.length)
+            } else {
+                editable.append(target, editable.length, target.length)
+            }
+        } catch (_: Exception) {
+        } finally {
+            isSyncingHiddenInput = false
         }
     }
 
@@ -1935,20 +2004,14 @@ class MainActivity : AppCompatActivity() {
             val noBreak = text.filter { it != 10.toChar() && it != 13.toChar() }
             val limited = if (noBreak.length > needLen) noBreak.substring(0, needLen) else noBreak
             if (limited != text) {
-                try {
-                    hiddenInput.setText(limited)
-                    hiddenInput.setSelection(hiddenInput.text.length)
-                } catch (_: Exception) {}
+                truncateHiddenInputSilently(limited)
             }
             limited
         } else {
             val sanitized = text.filter { !isSkippableChar(it) }
             val limited = if (sanitized.length > needLen) sanitized.substring(0, needLen) else sanitized
             if (limited != text) {
-                try {
-                    hiddenInput.setText(limited)
-                    hiddenInput.setSelection(hiddenInput.text.length)
-                } catch (_: Exception) {}
+                truncateHiddenInputSilently(limited)
             }
             limited
         }

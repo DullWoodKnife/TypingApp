@@ -130,6 +130,22 @@ class TypingTextView @JvmOverloads constructor(
     // userInput 去掉空白后的字符序列（正文分隔空格用户不输入）
     private var inputVisible = ""
 
+    // 字符宽度缓存：英文排版对同一字符重复测量（整词宽度 + 逐字落位），
+    // 10000 字符文本会放大成数万次 measureText，直接导致输入卡顿。
+    // 字号变化时清空缓存即可（见 onMeasure）。
+    private val charWidthCache = HashMap<Char, Float>()
+
+    private fun charW(c: Char): Float {
+        val cached = charWidthCache[c]
+        if (cached != null) return cached
+        val w = textPaint.measureText(c.toString())
+        charWidthCache[c] = w
+        return w
+    }
+
+    // 供宿主判断当前内容是否按英文排版（决定隐藏输入框的 inputType）
+    fun isEnglishMode(): Boolean = isEnglishContent
+
     fun setTextData(original: String, input: String, showCursor: Boolean) {
         // 文本/输入无变化时（如光标闪烁刷新），只重绘光标，不做布局重算，
         // 避免 requestLayout 干扰父 ScrollView 的滚动位置
@@ -138,6 +154,7 @@ class TypingTextView @JvmOverloads constructor(
             invalidate()
             return
         }
+        val originalChanged = original != originalText
         originalText = original
         userInput = input
         isEnglishContent = detectEnglishContent(original)
@@ -147,9 +164,13 @@ class TypingTextView @JvmOverloads constructor(
         // 已高亮区域不再在此清空——高亮需要跨输入、跨页面切换持久保留，
         // 由宿主在内容切换时通过 setHighlightRanges() 按当前文章恢复。
         clearSelectionInternal()
-        needsLayout = true
+        // 只有正文变化才需要重新排版；单纯输入变化只影响着色，重绘即可。
+        // 否则每次按键都会让父级 ScrollView 全量重新测量/布局，大文本下严重卡顿。
+        if (originalChanged || needsLayout) {
+            needsLayout = true
+            requestLayout()
+        }
         invalidate()
-        requestLayout()
     }
 
     // 内容判定：按汉字占比决定排版模式。
@@ -184,6 +205,7 @@ class TypingTextView @JvmOverloads constructor(
             // 对字号设上限，使每行高度在横竖屏下都保持合理（竖屏通常已小于该上限，不受影响）。
             val maxTextSize = MAX_TEXT_SIZE_SP * resources.displayMetrics.scaledDensity
             textPaint.textSize = minOf(width / (CHARS_PER_ROW + 1f), maxTextSize)
+            charWidthCache.clear()
             charWidth = textPaint.measureText("测")
             val fm = textPaint.fontMetrics
 
@@ -251,7 +273,7 @@ class TypingTextView @JvmOverloads constructor(
                 curRow = charRows[i]
                 curRight = 0f
             }
-            val w = if (isEnglishContent) textPaint.measureText(originalText[i].toString()) else charWidth
+            val w = if (isEnglishContent) charW(originalText[i]) else charWidth
             curRight = maxOf(curRight, charXs[i] + w)
             if (!isSkippableChar(originalText[i])) {
                 rank[i] = vis.size
@@ -291,7 +313,7 @@ class TypingTextView @JvmOverloads constructor(
     private fun computeEnglishLayout(width: Float, n: Int) {
         val left = EN_SIDE_PAD
         val right = width - EN_SIDE_PAD
-        val spaceW = textPaint.measureText(" ")
+        val spaceW = charW(' ')
         var x = left
         var row = 0
         var i = 0
@@ -308,14 +330,14 @@ class TypingTextView @JvmOverloads constructor(
             while (j < n && originalText[j] != ' ') j++
 
             var tokenW = 0f
-            for (k in i until j) tokenW += textPaint.measureText(originalText[k].toString())
+            for (k in i until j) tokenW += charW(originalText[k])
             // 当前行放不下这个词就整体换行，避免单词被切断
             if (x + tokenW > right && x > left) {
                 row++
                 x = left
             }
             for (k in i until j) {
-                val cw = textPaint.measureText(originalText[k].toString())
+                val cw = charW(originalText[k])
                 if (x + cw > right && x > left) {   // 单个词仍然超宽时按字符断行
                     row++
                     x = left
@@ -613,7 +635,24 @@ class TypingTextView @JvmOverloads constructor(
         val totalRows = totalRows()
         val fm = textPaint.fontMetrics
 
-        for (row in 0 until totalRows) {
+        // 只绘制与当前可见区域相交的行：
+        // 10000 字符约 300+ 行，逐行逐字绘制会让每帧产生上万个 drawText 调用，
+        // 主线程被占满后输入法事件排队、连切换输入法都会卡住。
+        val clipBounds = canvas.clipBounds
+        val rowIndexSpan = if (rowHeight > 0f) rowHeight else 1f
+        val firstVisibleRow: Int
+        val lastVisibleRow: Int
+        if (clipBounds.isEmpty || rowHeight <= 0f) {
+            firstVisibleRow = 0
+            lastVisibleRow = totalRows - 1
+        } else {
+            firstVisibleRow = (((clipBounds.top - topPadding) / rowIndexSpan).toInt() - 1)
+                .coerceIn(0, maxOf(0, totalRows - 1))
+            lastVisibleRow = (((clipBounds.bottom - topPadding) / rowIndexSpan).toInt() + 1)
+                .coerceIn(0, maxOf(0, totalRows - 1))
+        }
+
+        for (row in firstVisibleRow..lastVisibleRow) {
             val rowStart = if (row < rowStarts.size) rowStarts[row] else n
             val rowEnd = if (row + 1 < rowStarts.size) rowStarts[row + 1] else n
             if (rowStart >= rowEnd) continue
@@ -638,7 +677,7 @@ class TypingTextView @JvmOverloads constructor(
                 if (he2 > hs2) {
                     var hLeft2 = charXs[hs2]
                     var hRight2 = charXs[he2 - 1]
-                    if (isEnglishContent) hRight2 += textPaint.measureText(originalText[he2 - 1].toString())
+                    if (isEnglishContent) hRight2 += charW(originalText[he2 - 1])
                     else hRight2 += charWidth
                     val yTop = originalBaseline + fm.ascent - 2f
                     val yBottom = originalBaseline + fm.descent + 2f
@@ -653,7 +692,7 @@ class TypingTextView @JvmOverloads constructor(
                 if (he > hs) {
                     var hLeft = charXs[hs]
                     var hRight = charXs[he - 1]
-                    if (isEnglishContent) hRight += textPaint.measureText(originalText[he - 1].toString())
+                    if (isEnglishContent) hRight += charW(originalText[he - 1])
                     else hRight += charWidth
                     // 依据字体的 ascent/descent 计算与字形实际高度匹配的矩形上下边界
                     val glyphTop = originalBaseline + fm.ascent - 2f
