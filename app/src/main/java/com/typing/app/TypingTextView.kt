@@ -135,6 +135,44 @@ class TypingTextView @JvmOverloads constructor(
     // 字号变化时清空缓存即可（见 onMeasure）。
     private val charWidthCache = HashMap<Char, Float>()
 
+    // 增量维护“去换行后的输入串”：英文 1 万字文本下，每键全量 filter 会分配
+    // 10KB 级字符串并触发频繁 GC，输入表现为卡顿。这里只处理追加/删除的尾部。
+    private fun syncInputVisible(input: String) {
+        val cur = inputVisible
+        if (input === cur) return
+        // 等长：只需判断内容是否一致（避免无意义复制）
+        if (cur.length == input.length) {
+            var same = true
+            for (i in input.indices) {
+                if (input[i] != cur[i]) { same = false; break }
+            }
+            if (same) return
+        }
+        // 尾部追加（最常见的逐键输入）：只处理新增部分
+        if (input.length > cur.length && input.startsWith(cur)) {
+            val add = input.substring(cur.length)
+            var hasSkip = false
+            for (c in add) {
+                if (isSkippableChar(c)) { hasSkip = true; break }
+            }
+            inputVisible = if (!hasSkip) cur + add else (cur + add.filter { !isSkippableChar(it) })
+            return
+        }
+        // 尾部删除（退格）：旧串以新串为前缀时，直接截取
+        if (cur.length > input.length && cur.startsWith(input)) {
+            var hasSkip = false
+            for (c in input) {
+                if (isSkippableChar(c)) { hasSkip = true; break }
+            }
+            if (!hasSkip) {
+                inputVisible = input
+                return
+            }
+        }
+        // 其它情况（中间编辑/整体替换）：回退到全量过滤
+        inputVisible = if (input.none { isSkippableChar(it) }) input else input.filter { !isSkippableChar(it) }
+    }
+
     private fun charW(c: Char): Float {
         val cached = charWidthCache[c]
         if (cached != null) return cached
@@ -163,7 +201,7 @@ class TypingTextView @JvmOverloads constructor(
         // 正文未变时不重复做全文模式判定：1 万字符每次按键都重扫一遍代价很高
         if (originalChanged) isEnglishContent = detectEnglishContent(original)
         // 输入未变时复用上次的可见字符数组，避免每次按键再分配一份 10KB 级字符串
-        if (!sameInput) inputVisible = input.filter { !isSkippableChar(it) }
+        if (!sameInput) syncInputVisible(input)
         cursorVisible = showCursor
         // 切换内容/输入变化时只清除长按选中状态；
         // 已高亮区域不再在此清空——高亮需要跨输入、跨页面切换持久保留，

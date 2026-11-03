@@ -1178,15 +1178,11 @@ class MainActivity : AppCompatActivity() {
         // 输入与正文均按“非空白字符”一一对齐：正文中的空格/窄空格是排版分隔符，用户不会输入，
         // 因此已输入字数取 userInput 中非空白字符数，再映射到 text 中第 n 个非空白字符的下标。
         // 这样五笔编码始终指向光标右侧真正待输入的汉字，不会因光标落在分隔空格上而变空（竖屏偶发消失）。
-        var typed = 0
-        for (c in userInput) if (!isSkippableChar(c)) typed++
-        var seen = 0
-        for (i in text.indices) {
-            if (isSkippableChar(text[i])) continue
-            if (seen == typed) return i
-            seen++
-        }
-        return -1
+        ensureContentIndex(text)
+        val typed = userVisibleLength()
+        if (idxPos.isEmpty()) return -1
+        if (typed >= idxPos.size) return -1
+        return idxPos[typed]
     }
 
     // 更新五笔码 + 拼音/音标释义区。成语关卡自动显示光标所在成语的拼音和释义。
@@ -1734,6 +1730,14 @@ class MainActivity : AppCompatActivity() {
         isFinished = false
         elapsed = 0
         userInput = ""
+        // 换内容后清掉正文索引/统计增量缓存（首次调用会按新正文重建）
+        idxFor = null
+        statTextFor = null
+        statInputFor = null
+        statCorrect = 0
+        statWrong = 0
+        statCovered = 0
+        userVisLenFor = null
 
         // 更新练习页标题：五笔关卡模式显示"分类-第X关-练习模式"
         if (isWubiPractice && practiceReturnPage == "wubiLevels") {
@@ -1766,7 +1770,9 @@ class MainActivity : AppCompatActivity() {
         inputModeActive = false
         cursorVisible = false
 
-        val text = content.getString("content")
+        // 用 currentContentText() 取正文：与后续每次刷新使用同一 String 实例，
+        // 否则每按键都会被记账为“正文变化”并触发全篇重新排版（大文本明显卡顿）。
+        val text = currentContentText() ?: content.getString("content")
         typingTextView.setTextData(text, userInput, cursorVisible)
         // 阅读态就按内容选好 inputType：英文禁用候选联想，避免空格被候选吞掉、快速输入丢字
         applyInputTypeForContent()
@@ -1805,34 +1811,73 @@ class MainActivity : AppCompatActivity() {
         return a.isWhitespace() && b.isWhitespace()
     }
 
-    // 单次刷新内同一字符串会被反复统计（正文可输入数、已输入数、字数显示）。
-    // 1 万字符时每次按键重复全文扫描会直接造成输入卡顿，这里按实例缓存结果。
-    private val inputableCountCache = java.util.IdentityHashMap<String, Int>()
-    private val visibleCharsCache = java.util.IdentityHashMap<String, String>()
+    // 正文可见字符索引缓存：正文（去换行）字符序列 + 每个可见字符在正文中的下标。
+    // 1 万字符时每次按键都要多次全文扫描（定位光标、统计正确/错误、字数），
+    // 这里按正文实例缓存一次，之后取用为 O(1)，追加输入时统计只处理新增部分。
+    private var idxFor: String? = null
+    private var idxChars: CharArray = CharArray(0)
+    private var idxPos: IntArray = IntArray(0)
 
-    private fun inputableCountCached(s: String): Int {
-        val hit = inputableCountCache[s]
-        if (hit != null) return hit
-        val v = inputableCountCached(s)
-        if (inputableCountCache.size > 16) inputableCountCache.clear()
-        inputableCountCache[s] = v
-        return v
+    private fun ensureContentIndex(text: String) {
+        // 同一实例直接命中；内容相同但实例不同（JSON 重新取值）也视为同一正文，
+        // 避免每次按键重建索引（重建需一次全文扫描并分配两个数组）。
+        val cached = idxFor
+        if (cached === text) return
+        if (cached != null && cached.length == text.length && cached == text) {
+            idxFor = text
+            return
+        }
+        var n = 0
+        for (c in text) if (!isSkippableChar(c)) n++
+        val chars = CharArray(n)
+        val pos = IntArray(n)
+        var k = 0
+        for (i in text.indices) {
+            val c = text[i]
+            if (isSkippableChar(c)) continue
+            chars[k] = c
+            pos[k] = i
+            k++
+        }
+        idxChars = chars
+        idxPos = pos
+        idxFor = text
+        // 正文变化后，历史统计结果失效
+        statTextFor = null
+        statInputFor = null
+        statCorrect = 0
+        statWrong = 0
+        statCovered = 0
     }
 
-    private fun visibleCharsOf(s: String): String {
-        val hit = visibleCharsCache[s]
-        if (hit != null) return hit
-        val v = s.filter { !isSkippableChar(it) }
-        if (visibleCharsCache.size > 16) visibleCharsCache.clear()
-        visibleCharsCache[s] = v
-        return v
-    }
+    // 已输入可见字符数缓存（同一 userInput 实例只统计一次）
+    private var userVisLenFor: String? = null
+    private var userVisLen = 0
 
-    private fun inputableCount(s: String): Int {
+    private fun userVisibleLength(): Int {
+        val s = userInput
+        val cachedInput = userVisLenFor
+        if (cachedInput === s) return userVisLen
+        if (cachedInput != null && cachedInput.length == s.length && cachedInput == s) {
+            userVisLenFor = s
+            return userVisLen
+        }
         var n = 0
         for (c in s) if (!isSkippableChar(c)) n++
+        userVisLenFor = s
+        userVisLen = n
         return n
     }
+
+    // 统计增量状态：按键通常是尾部追加，只需比对新增部分
+    private var statTextFor: String? = null
+    private var statInputFor: String? = null
+    private var statCorrect = 0
+    private var statWrong = 0
+    private var statCovered = 0
+
+    // 说明：原 inputableCountCached / visibleCharsOf（按字符串实例缓存全文 filter 结果）
+    // 已被上面的“正文可见字符索引 + 增量统计”取代，这里不再保留，避免每键构造 1 万字级副本。
 
     // 刷新“字数:xxx”（当前练习内容的可输入字数）
     // 当前正文缓存：每次按键都会用到，避免重复 getContent（JSON 扫描 / 资源读取）
@@ -1853,12 +1898,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateCharCount(text: String) {
         if (!::charCount.isInitialized) return
-        charCount.text = getString(R.string.char_count_format, inputableCountCached(text))
+        ensureContentIndex(text)
+        charCount.text = getString(R.string.char_count_format, idxChars.size)
     }
 
     private fun updateTextDisplay(keepScroll: Boolean = false) {
-        val content = getContent(currentContentId) ?: return
-        val text = content.getString("content")
+        // 走 currentContentText 缓存（与 initPractice 传入同一 String 实例）：
+        // 否则每次按键都要 JSON 扫描取正文，且新实例会让 TypingTextView 判定“正文变化”
+        // 而重新做整篇排版（1 万字文本下表现为明显卡顿）。
+        val text = currentContentText() ?: return
         typingTextView.setTextData(text, userInput, cursorVisible)
         // 输入/界面刷新时补上高亮恢复（同一内容只恢复一次，不会覆盖本次手动改动）
         restoreHighlightsIfNeeded()
@@ -2018,7 +2066,8 @@ class MainActivity : AppCompatActivity() {
 
         // 练习内容需输入的字符数：忽略空白分隔符（空格/换行等用户不输入）
         val enMode = typingTextView.isEnglishContent
-        val needLen = inputableCountCached(originalText)
+        ensureContentIndex(originalText)
+        val needLen = idxChars.size
         // Limit input length
         // 中文按“非空白字符”计数，并去除输入中的空白，避免正文分隔空格或键盘/输入法产生的隐形空白
         // 把长度撑到正文长度而误判“已完成”（英文按原长度处理，空格有意义）。
@@ -2053,20 +2102,24 @@ class MainActivity : AppCompatActivity() {
         // 用 LCP（最长公共前缀）找到新旧文本真正不同的部分，仅对差异字符播放音效。
         if (originalText.isNotEmpty()) {
             // 键盘音效：输入与正文按“非空白字符”对齐（正文分隔空格用户不输入），避免错位误报
-            val prevVis = visibleCharsOf(prevInput)
-            val curVis = visibleCharsOf(userInput)
-            val origVis = visibleCharsOf(originalText)
-            val minLen = minOf(prevVis.length, curVis.length)
-            var lcp = 0
-            while (lcp < minLen && prevVis[lcp] == curVis[lcp]) lcp++
-            for (r in lcp until curVis.length) {
-                val gotC = curVis[r]
-                val expectC = if (r < origVis.length) origVis[r] else null
+            // 只为本次新增字符播音效：原先每键都构造三份 1 万字级“去空白副本”，
+            // 大文本下光字符串分配就足以造成输入卡顿，这里改为按下标原地比较。
+            val minRaw = minOf(prevInput.length, userInput.length)
+            var rawLcp = 0
+            while (rawLcp < minRaw && prevInput[rawLcp] == userInput[rawLcp]) rawLcp++
+            var r = 0
+            for (i in 0 until rawLcp) if (!isSkippableChar(prevInput[i])) r++
+            val origVis = idxChars
+            for (i in rawLcp until userInput.length) {
+                val gotC = userInput[i]
+                if (isSkippableChar(gotC)) continue
+                val expectC = if (r < origVis.size) origVis[r] else null
                 // IME（拼音/五笔）组合过程中会先出现字母：目标不是字母时视为组合过程，不播音效
                 if (gotC.isAsciiLetter() && (expectC == null || !expectC.isAsciiLetter())) {
                     continue
                 }
-                playKeySound(expectC != null && gotC == expectC)
+                playKeySound(expectC != null && charsMatch(gotC, expectC))
+                r++
             }
         }
 
@@ -2074,7 +2127,7 @@ class MainActivity : AppCompatActivity() {
         updateStats(originalText)
 
         // Check completion：按“非空白字符”判断是否已输入完所有需输入的字符（避免空白误判提前完成）
-        val typedLen = inputableCountCached(userInput)
+        val typedLen = userVisibleLength()
         if (needLen > 0 && typedLen >= needLen && !isFinished) {
             isFinished = true
             stopTimer()
@@ -2135,25 +2188,55 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun recalcStats(text: String): IntArray {
-        var correct = 0
-        var wrong = 0
-        // 输入与正文逐字符对齐统计（换行自动跳过，空格需用户输入且空格类字符等价）
-        val inputVis = visibleCharsOf(userInput)
-        var r = 0
-        for (c in text) {
-            if (isSkippableChar(c)) continue
-            if (r >= inputVis.length) break
-            if (charsMatch(inputVis[r], c)) correct++ else wrong++
-            r++
+        // 输入与正文逐字符对齐统计（换行自动跳过，空格需用户输入且空格类字符等价）。
+        // 1 万字文本每次按键都全文重算会累积成卡顿：这里按正文/输入实例缓存结果，
+        // 输入为纯追加时只比对新增字符，只有删除/整体替换才回退到全量统计。
+        ensureContentIndex(text)
+        val chars = idxChars
+        val cur = userInput
+        if (statTextFor === text && statInputFor === cur) {
+            return intArrayOf(statCorrect, statWrong)
         }
-        return intArrayOf(correct, wrong)
+        if (statTextFor === text && statInputFor != null && cur.startsWith(statInputFor!!)) {
+            var r = statCovered
+            var c = statCorrect
+            var w = statWrong
+            val from = statInputFor!!.length
+            for (i in from until cur.length) {
+                val ch = cur[i]
+                if (isSkippableChar(ch)) continue
+                if (r >= chars.size) break
+                if (charsMatch(ch, chars[r])) c++ else w++
+                r++
+            }
+            statCorrect = c
+            statWrong = w
+            statCovered = r
+        } else {
+            var r = 0
+            var c = 0
+            var w = 0
+            for (ch in cur) {
+                if (isSkippableChar(ch)) continue
+                if (r >= chars.size) break
+                if (charsMatch(ch, chars[r])) c++ else w++
+                r++
+            }
+            statCorrect = c
+            statWrong = w
+            statCovered = r
+        }
+        statTextFor = text
+        statInputFor = cur
+        return intArrayOf(statCorrect, statWrong)
     }
 
     private fun updateStats(text: String) {
         val stats = recalcStats(text)
         // 进度按“需输入字符数”计算：仅换行不计入，空格计入需输入
-        val totalLen = inputableCountCached(text)
-        val typedLen = inputableCountCached(userInput)
+        ensureContentIndex(text)
+        val totalLen = idxChars.size
+        val typedLen = userVisibleLength()
         val prog = if (totalLen > 0) Math.min(100, Math.round(typedLen.toFloat() / totalLen * 100)) else 0
         statProgress.text = "$prog%"
 
@@ -2234,13 +2317,13 @@ class MainActivity : AppCompatActivity() {
         val content = getContent(currentContentId) ?: return
         val text = content.getString("content")
         val raw = hiddenInput.text.toString()
+        ensureContentIndex(text)
+        val needLen = idxChars.size
         userInput = if (typingTextView.isEnglishContent) {
             val noBreak = raw.filter { it != 10.toChar() && it != 13.toChar() }
-            val needLen = inputableCountCached(text)
             if (noBreak.length > needLen) noBreak.substring(0, needLen) else noBreak
         } else {
-            val sanitized = raw.filter { !isSkippableChar(it) }
-            val needLen = inputableCountCached(text)
+            val sanitized = if (raw.any { isSkippableChar(it) }) raw.filter { !isSkippableChar(it) } else raw
             if (sanitized.length > needLen) sanitized.substring(0, needLen) else sanitized
         }
         if (userInput != raw) hiddenInput.setText(userInput)
