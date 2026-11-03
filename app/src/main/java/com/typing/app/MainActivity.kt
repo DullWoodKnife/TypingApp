@@ -1805,6 +1805,29 @@ class MainActivity : AppCompatActivity() {
         return a.isWhitespace() && b.isWhitespace()
     }
 
+    // 单次刷新内同一字符串会被反复统计（正文可输入数、已输入数、字数显示）。
+    // 1 万字符时每次按键重复全文扫描会直接造成输入卡顿，这里按实例缓存结果。
+    private val inputableCountCache = java.util.IdentityHashMap<String, Int>()
+    private val visibleCharsCache = java.util.IdentityHashMap<String, String>()
+
+    private fun inputableCountCached(s: String): Int {
+        val hit = inputableCountCache[s]
+        if (hit != null) return hit
+        val v = inputableCountCached(s)
+        if (inputableCountCache.size > 16) inputableCountCache.clear()
+        inputableCountCache[s] = v
+        return v
+    }
+
+    private fun visibleCharsOf(s: String): String {
+        val hit = visibleCharsCache[s]
+        if (hit != null) return hit
+        val v = s.filter { !isSkippableChar(it) }
+        if (visibleCharsCache.size > 16) visibleCharsCache.clear()
+        visibleCharsCache[s] = v
+        return v
+    }
+
     private fun inputableCount(s: String): Int {
         var n = 0
         for (c in s) if (!isSkippableChar(c)) n++
@@ -1830,7 +1853,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateCharCount(text: String) {
         if (!::charCount.isInitialized) return
-        charCount.text = getString(R.string.char_count_format, inputableCount(text))
+        charCount.text = getString(R.string.char_count_format, inputableCountCached(text))
     }
 
     private fun updateTextDisplay(keepScroll: Boolean = false) {
@@ -1980,8 +2003,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleInput(text: String) {
-        val content = getContent(currentContentId) ?: return
-        val originalText = content.getString("content")
+        // 正文走 contentId 缓存：每次按键不再重复查 JSON / 读资源
+        val originalText = currentContentText() ?: return
         val prevInput = userInput
         val prevLen = userInput.length
 
@@ -1995,22 +2018,31 @@ class MainActivity : AppCompatActivity() {
 
         // 练习内容需输入的字符数：忽略空白分隔符（空格/换行等用户不输入）
         val enMode = typingTextView.isEnglishContent
-        val needLen = inputableCount(originalText)
+        val needLen = inputableCountCached(originalText)
         // Limit input length
         // 中文按“非空白字符”计数，并去除输入中的空白，避免正文分隔空格或键盘/输入法产生的隐形空白
         // 把长度撑到正文长度而误判“已完成”（英文按原长度处理，空格有意义）。
         userInput = if (enMode) {
             // 英文：空格必须由用户输入，但换行无法输入需剔除，长度按可输入字符数限制
-            val noBreak = text.filter { it != 10.toChar() && it != 13.toChar() }
+            // 绝大多数按键输入不含换行：无换行时直接用原串，省掉一次 10KB 级字符串分配
+            val noBreak = if (text.indexOf(10.toChar()) >= 0 || text.indexOf(13.toChar()) >= 0) {
+                text.filter { it != 10.toChar() && it != 13.toChar() }
+            } else {
+                text
+            }
             val limited = if (noBreak.length > needLen) noBreak.substring(0, needLen) else noBreak
-            if (limited != text) {
+            if (limited !== text) {
                 truncateHiddenInputSilently(limited)
             }
             limited
         } else {
-            val sanitized = text.filter { !isSkippableChar(it) }
+            val sanitized = if (text.indexOf(10.toChar()) >= 0 || text.indexOf(13.toChar()) >= 0) {
+                text.filter { !isSkippableChar(it) }
+            } else {
+                text
+            }
             val limited = if (sanitized.length > needLen) sanitized.substring(0, needLen) else sanitized
-            if (limited != text) {
+            if (limited !== text) {
                 truncateHiddenInputSilently(limited)
             }
             limited
@@ -2021,9 +2053,9 @@ class MainActivity : AppCompatActivity() {
         // 用 LCP（最长公共前缀）找到新旧文本真正不同的部分，仅对差异字符播放音效。
         if (originalText.isNotEmpty()) {
             // 键盘音效：输入与正文按“非空白字符”对齐（正文分隔空格用户不输入），避免错位误报
-            val prevVis = prevInput.filter { !isSkippableChar(it) }
-            val curVis = userInput.filter { !isSkippableChar(it) }
-            val origVis = originalText.filter { !isSkippableChar(it) }
+            val prevVis = visibleCharsOf(prevInput)
+            val curVis = visibleCharsOf(userInput)
+            val origVis = visibleCharsOf(originalText)
             val minLen = minOf(prevVis.length, curVis.length)
             var lcp = 0
             while (lcp < minLen && prevVis[lcp] == curVis[lcp]) lcp++
@@ -2042,7 +2074,7 @@ class MainActivity : AppCompatActivity() {
         updateStats(originalText)
 
         // Check completion：按“非空白字符”判断是否已输入完所有需输入的字符（避免空白误判提前完成）
-        val typedLen = inputableCount(userInput)
+        val typedLen = inputableCountCached(userInput)
         if (needLen > 0 && typedLen >= needLen && !isFinished) {
             isFinished = true
             stopTimer()
@@ -2106,7 +2138,7 @@ class MainActivity : AppCompatActivity() {
         var correct = 0
         var wrong = 0
         // 输入与正文逐字符对齐统计（换行自动跳过，空格需用户输入且空格类字符等价）
-        val inputVis = userInput.filter { !isSkippableChar(it) }
+        val inputVis = visibleCharsOf(userInput)
         var r = 0
         for (c in text) {
             if (isSkippableChar(c)) continue
@@ -2120,8 +2152,8 @@ class MainActivity : AppCompatActivity() {
     private fun updateStats(text: String) {
         val stats = recalcStats(text)
         // 进度按“需输入字符数”计算：仅换行不计入，空格计入需输入
-        val totalLen = inputableCount(text)
-        val typedLen = inputableCount(userInput)
+        val totalLen = inputableCountCached(text)
+        val typedLen = inputableCountCached(userInput)
         val prog = if (totalLen > 0) Math.min(100, Math.round(typedLen.toFloat() / totalLen * 100)) else 0
         statProgress.text = "$prog%"
 
@@ -2204,11 +2236,11 @@ class MainActivity : AppCompatActivity() {
         val raw = hiddenInput.text.toString()
         userInput = if (typingTextView.isEnglishContent) {
             val noBreak = raw.filter { it != 10.toChar() && it != 13.toChar() }
-            val needLen = inputableCount(text)
+            val needLen = inputableCountCached(text)
             if (noBreak.length > needLen) noBreak.substring(0, needLen) else noBreak
         } else {
             val sanitized = raw.filter { !isSkippableChar(it) }
-            val needLen = inputableCount(text)
+            val needLen = inputableCountCached(text)
             if (sanitized.length > needLen) sanitized.substring(0, needLen) else sanitized
         }
         if (userInput != raw) hiddenInput.setText(userInput)

@@ -147,18 +147,23 @@ class TypingTextView @JvmOverloads constructor(
     fun isEnglishMode(): Boolean = isEnglishContent
 
     fun setTextData(original: String, input: String, showCursor: Boolean) {
+        // 先做引用比较：宿主传入的是缓存实例，大文本（1 万字符）时逐字符 equals 本身就是开销
+        val sameOriginal = original === originalText || original == originalText
+        val sameInput = input === userInput || input == userInput
         // 文本/输入无变化时（如光标闪烁刷新），只重绘光标，不做布局重算，
         // 避免 requestLayout 干扰父 ScrollView 的滚动位置
-        if (original == originalText && input == userInput) {
+        if (sameOriginal && sameInput) {
             cursorVisible = showCursor
             invalidate()
             return
         }
-        val originalChanged = original != originalText
+        val originalChanged = !sameOriginal
         originalText = original
         userInput = input
-        isEnglishContent = detectEnglishContent(original)
-        inputVisible = input.filter { !isSkippableChar(it) }
+        // 正文未变时不重复做全文模式判定：1 万字符每次按键都重扫一遍代价很高
+        if (originalChanged) isEnglishContent = detectEnglishContent(original)
+        // 输入未变时复用上次的可见字符数组，避免每次按键再分配一份 10KB 级字符串
+        if (!sameInput) inputVisible = input.filter { !isSkippableChar(it) }
         cursorVisible = showCursor
         // 切换内容/输入变化时只清除长按选中状态；
         // 已高亮区域不再在此清空——高亮需要跨输入、跨页面切换持久保留，
