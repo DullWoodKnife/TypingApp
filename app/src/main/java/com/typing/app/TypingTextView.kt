@@ -828,8 +828,11 @@ class TypingTextView @JvmOverloads constructor(
                 val oi = visibleIndices[caretPos]
                 charRows[oi] to charXs[oi]
             } else {
-                val idx = originalText.length - 1
-                charRows[idx] to (charXs[idx] + if (isEnglishContent) charW(originalText[idx]) else charWidth)
+                // 已输入到可见字符末尾：光标停在最后一个可见字符槽位的右侧
+                val idx = if (visibleIndices.isNotEmpty()) visibleIndices[visibleIndices.size - 1]
+                          else originalText.length - 1
+                val w = if (isEnglishContent) charW(originalText[idx]) else charWidth
+                charRows[idx] to (charXs[idx] + w)
             }
 
             val rowTop = topPadding + row * rowHeight

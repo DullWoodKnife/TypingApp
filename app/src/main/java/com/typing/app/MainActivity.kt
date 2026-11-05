@@ -790,7 +790,10 @@ class MainActivity : AppCompatActivity() {
                     isComposing = true
                     // 组合阶段每敲一个字母播一次普通敲击音（与英文逐键音效一致）
                     playKeySound(true)
-                    try { hiddenInput.setSelection(hiddenInput.text.length) } catch (_: Exception) {}
+                    // 注意：这里不能移动隐藏输入框的光标。
+                    // 在输入法组合过程中 setSelection 会打断组合，导致空格或字母被丢弃
+                    // （此前“英文输入时有时打不出空格”即由此引起，空格丢失后
+                    //   后续字符必然与目标文本错位）。
                     return
                 }
                 isComposing = false
