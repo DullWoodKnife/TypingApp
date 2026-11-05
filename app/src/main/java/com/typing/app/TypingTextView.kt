@@ -176,8 +176,19 @@ class TypingTextView @JvmOverloads constructor(
     // onDraw 中记录“已输入文本”最后落笔的位置（行号 + 笔后 x）。
     // 打字行改为按已输入字符自身字宽推进后，光标必须跟随这条“笔”，
     // 否则打错字母（字宽变宽）时光标会落在被压住的目标字符槽位上。
-    private var typedPenRow = -1
-    private var typedPenEndX = 0f
+
+    // 光标所在的“已输入可见字符下标”（0 = 行首，inputVisible.length = 末尾）。
+    // -1 表示跟随末尾。输入模式下由宿主用隐藏输入框的 selectionStart 同步，
+    // 这样按左/右方向键时光标能真正移动，而不是被钉在末尾。
+    private var caretVisibleIndex = -1
+
+    fun setCaretVisibleIndex(index: Int) {
+        val v = if (index < 0) -1 else index
+        if (caretVisibleIndex != v) {
+            caretVisibleIndex = v
+            invalidate()
+        }
+    }
 
     private fun charW(c: Char): Float {
         val cached = charWidthCache[c]
@@ -701,8 +712,6 @@ class TypingTextView @JvmOverloads constructor(
                 .coerceIn(0, maxOf(0, totalRows - 1))
         }
 
-        typedPenRow = -1
-        typedPenEndX = 0f
         for (row in firstVisibleRow..lastVisibleRow) {
             val rowStart = if (row < rowStarts.size) rowStarts[row] else n
             val rowEnd = if (row + 1 < rowStarts.size) rowStarts[row + 1] else n
@@ -758,33 +767,37 @@ class TypingTextView @JvmOverloads constructor(
             }
 
             // === User input at 55% of row ===
-            // 已输入文本按“自身字宽”从本行左端自然流排（不再强行对齐到目标字符槽位）。
-            // 旧实现把第 r 个输入字符画在目标字符 charXs[visibleIndices[r]] 上，
-            // 目标字符宽度与输入字符宽度不一致时（把窄的 I 打成宽的 R、漏打空格、
-            // 或用比例字体），字形就会互相挤压重叠，表现为“打错字母会错位”。
-            // 自然流排只在真正打错后才向右累计偏移，永远不会出现压字。
+            // 对齐规则（关键）：第 r 个已输入字符一律画在第 r 个目标字符的槽位 charXs[k] 上，
+            // 与上一行目标文本严格逐列镜像对齐。
+            // 之前按“自身字宽逐字右推”（penX = drawX + charW）会让每一处宽度差都累积下来，
+            // 打错一个字母或漏打一个空格后，右边所有字符都会整体偏移，看起来就是“文字与输入不对齐”。
+            // 现在改为：槽位固定不漂移；仅当该字形比槽位更宽时，用 textScaleX 把它横向压缩进槽位，
+            // 这样既不会漂移，也不会像直接叠画那样压住相邻字符。
             val inputBaseline = rowTop + rowHeight * 0.55f
             if (inputVisible.isNotEmpty()) {
                 textPaint.color = colorInputText
-                var penX = charXs[rowStart]
-                var rowHasInput = false
+                val baseScale = textPaint.textScaleX
                 for (k in rowStart until rowEnd) {
                     val r = if (k < visibleRank.size) visibleRank[k] else -1
                     if (r < 0) continue
                     if (r >= inputVisible.length) break
                     val ch = inputVisible[r]
-                    canvas.drawText(ch.toString(), penX, inputBaseline, textPaint)
-                    penX += charW(ch)
-                    rowHasInput = true
-                    if (r == inputVisible.length - 1) {
-                        typedPenRow = row
-                        typedPenEndX = penX
+                    if (ch == ' ' || ch == '\u00A0' || ch == '\u3000') continue
+                    val slotX = charXs[k]
+                    // 槽位宽度：本行内到下一个可见字符槽位的距离；行末用该字符自身字宽
+                    val nextSlot = if (k + 1 < rowEnd && k + 1 < charXs.size) charXs[k + 1]
+                                   else slotX + (if (isEnglishContent) charW(originalText[k]) else charWidth)
+                    val slotW = (nextSlot - slotX).coerceAtLeast(1f)
+                    val gw = charW(ch)
+                    if (gw > slotW + 0.5f) {
+                        // 字形比槽位宽：横向压缩进槽位（最多压到 60%，避免压得看不清）
+                        val scale = (slotW / gw).coerceAtLeast(0.6f)
+                        textPaint.textScaleX = baseScale * scale
+                        canvas.drawText(ch.toString(), slotX, inputBaseline, textPaint)
+                        textPaint.textScaleX = baseScale
+                    } else {
+                        canvas.drawText(ch.toString(), slotX, inputBaseline, textPaint)
                     }
-                }
-                if (rowHasInput && typedPenRow < 0) {
-                    // 已输入字符都在本行之后的行（不应发生），仍记录末行笔位
-                    typedPenRow = row
-                    typedPenEndX = penX
                 }
             }
 
@@ -806,14 +819,13 @@ class TypingTextView @JvmOverloads constructor(
         // === Blue cursor on user input line ===
         if (cursorVisible && originalText.isNotEmpty() && visibleIndices.isNotEmpty()) {
             val typedVisible = inputVisible.length
-            // 光标必须与实际绘制笔位一致：输入行是“按自身字宽自然流排”，
-            // 最后输入的字符若比目标字符窄/宽，笔位都会偏离目标槽位，
-            // 此时若仍吸附到目标槽位，光标与刚打出的字符之间就会出现空隙或重叠。
-            val (row, cursorX) = if (typedPenRow >= 0 && typedVisible > 0) {
-                typedPenRow to typedPenEndX
-            } else if (typedVisible < visibleIndices.size) {
-                // 尚未输入任何可见字符：光标停在目标首字符槽位
-                val oi = visibleIndices[typedVisible]
+            // 光标位置取“已输入可见字符下标”：-1 表示跟随末尾（默认），
+            // 非 -1 时由宿主按隐藏输入框的 caret 同步，从而支持按左/右方向键移动光标。
+            val caretPos = if (caretVisibleIndex < 0) typedVisible
+                            else minOf(caretVisibleIndex, typedVisible)
+            // 因为输入行是按目标槽位绘制的，光标也落在同一槽位上，二者始终同列。
+            val (row, cursorX) = if (caretPos < visibleIndices.size) {
+                val oi = visibleIndices[caretPos]
                 charRows[oi] to charXs[oi]
             } else {
                 val idx = originalText.length - 1

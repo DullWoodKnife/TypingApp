@@ -795,8 +795,10 @@ class MainActivity : AppCompatActivity() {
                 }
                 isComposing = false
                 handleInput(s?.toString() ?: "")
-                // 始终把隐藏输入框的光标拉回末尾，避免左/右移光标后按删除键删错字符
-                try { hiddenInput.setSelection(hiddenInput.text.length) } catch (_: Exception) {}
+                // 不再强制把 caret 拉回末尾：保留输入法的插入位置（支持在中间回退修改），
+                // 并把该位置换算成可见字符下标同步给正文视图，
+                // 这样蓝色光标与实际插入点始终一致，不会出现“光标不动但删除位置错位”。
+                syncCaretToView()
             }
         })
 
@@ -1730,6 +1732,8 @@ class MainActivity : AppCompatActivity() {
         isFinished = false
         elapsed = 0
         userInput = ""
+        // 新练习：光标回到末尾（取消任何残留的中间插入点）
+        if (::typingTextView.isInitialized) typingTextView.setCaretVisibleIndex(-1)
         // 换内容后清掉正文索引/统计增量缓存（首次调用会按新正文重建）
         idxFor = null
         statTextFor = null
@@ -1994,6 +1998,24 @@ class MainActivity : AppCompatActivity() {
                 isSyncingHiddenInput = false
             }
         }
+    }
+
+    // 把隐藏输入框的插入点（原始字符下标）换算为“可见字符下标”并同步给正文视图。
+    // 视图按该下标把蓝色光标画在对应目标字符的槽位上；等于可见总数时传 -1（跟随末尾）。
+    private fun syncCaretToView() {
+        if (!::typingTextView.isInitialized) return
+        val text = hiddenInput.text?.toString() ?: ""
+        val sel = try { hiddenInput.selectionStart } catch (_: Exception) { -1 }
+        if (sel < 0) {
+            typingTextView.setCaretVisibleIndex(-1)
+            return
+        }
+        val upto = sel.coerceIn(0, text.length)
+        var vis = 0
+        for (i in 0 until upto) if (!isSkippableChar(text[i])) vis++
+        var total = vis
+        for (i in upto until text.length) if (!isSkippableChar(text[i])) total++
+        typingTextView.setCaretVisibleIndex(if (vis >= total) -1 else vis)
     }
 
     private fun enterInputMode() {
@@ -3839,8 +3861,9 @@ class MainActivity : AppCompatActivity() {
     // 物理键盘直输兜底：焦点不在输入框时（如误触其他区域），直接接管按键，
     // 走与软键盘一致的 handleInput 流程；焦点在输入框时交给系统（物理键直接进 EditText / IME）
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        // 练习页中，方向键/左右键一律把隐藏输入框光标拉回末尾，不允许移动光标，
-        // 否则界面光标不动、但按删除键会删掉“移动后位置”的字符（错位删除）。
+        // 练习页中允许用左右方向键移动光标（回退修改已输入内容）。
+        // 旧逻辑一律 setSelection(末尾)，导致“光标无法向左移动”。
+        // 上下方向键不做跨行跳转，保持原地（避免光标移到看不见的位置）。
         if (!isFinished && pagePractice.visibility == View.VISIBLE &&
             event.action == KeyEvent.ACTION_DOWN &&
             (event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
@@ -3850,7 +3873,18 @@ class MainActivity : AppCompatActivity() {
              event.keyCode == KeyEvent.KEYCODE_MOVE_END ||
              event.keyCode == KeyEvent.KEYCODE_MOVE_HOME)
         ) {
-            try { hiddenInput.setSelection(hiddenInput.text.length) } catch (_: Exception) {}
+            val len = hiddenInput.text?.length ?: 0
+            val cur = try { hiddenInput.selectionStart } catch (_: Exception) { len }
+            val base = if (cur < 0) len else cur
+            val target = when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> maxOf(0, base - 1)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> minOf(len, base + 1)
+                KeyEvent.KEYCODE_MOVE_HOME -> 0
+                KeyEvent.KEYCODE_MOVE_END -> len
+                else -> base.coerceIn(0, len)
+            }
+            try { hiddenInput.setSelection(target) } catch (_: Exception) {}
+            syncCaretToView()
             return true
         }
         if (!isFinished && event.action == KeyEvent.ACTION_DOWN &&
