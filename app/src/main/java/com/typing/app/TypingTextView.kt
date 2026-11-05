@@ -806,18 +806,18 @@ class TypingTextView @JvmOverloads constructor(
         // === Blue cursor on user input line ===
         if (cursorVisible && originalText.isNotEmpty() && visibleIndices.isNotEmpty()) {
             val typedVisible = inputVisible.length
-            val (row, cursorX) = if (typedVisible < visibleIndices.size) {
+            // 光标必须与实际绘制笔位一致：输入行是“按自身字宽自然流排”，
+            // 最后输入的字符若比目标字符窄/宽，笔位都会偏离目标槽位，
+            // 此时若仍吸附到目标槽位，光标与刚打出的字符之间就会出现空隙或重叠。
+            val (row, cursorX) = if (typedPenRow >= 0 && typedVisible > 0) {
+                typedPenRow to typedPenEndX
+            } else if (typedVisible < visibleIndices.size) {
+                // 尚未输入任何可见字符：光标停在目标首字符槽位
                 val oi = visibleIndices[typedVisible]
-                val slotX = charXs[oi]
-                // 若上一字符已把笔位推到本行更右侧，光标紧随笔后；否则落在目标槽位
-                val x = if (typedPenRow == charRows[oi] && typedPenEndX > slotX) typedPenEndX else slotX
-                charRows[oi] to x
+                charRows[oi] to charXs[oi]
             } else {
-                // 全部输完：光标停在最后落笔处
                 val idx = originalText.length - 1
-                val slotEnd = charXs[idx] + if (isEnglishContent) charW(originalText[idx]) else charWidth
-                val x = if (typedPenRow >= 0 && typedPenEndX > slotEnd) typedPenEndX else slotEnd
-                (if (typedPenRow >= 0) typedPenRow else charRows[idx]) to x
+                charRows[idx] to (charXs[idx] + if (isEnglishContent) charW(originalText[idx]) else charWidth)
             }
 
             val rowTop = topPadding + row * rowHeight
