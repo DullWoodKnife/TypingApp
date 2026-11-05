@@ -173,6 +173,12 @@ class TypingTextView @JvmOverloads constructor(
         inputVisible = if (input.none { isSkippableChar(it) }) input else input.filter { !isSkippableChar(it) }
     }
 
+    // onDraw 中记录“已输入文本”最后落笔的位置（行号 + 笔后 x）。
+    // 打字行改为按已输入字符自身字宽推进后，光标必须跟随这条“笔”，
+    // 否则打错字母（字宽变宽）时光标会落在被压住的目标字符槽位上。
+    private var typedPenRow = -1
+    private var typedPenEndX = 0f
+
     private fun charW(c: Char): Float {
         val cached = charWidthCache[c]
         if (cached != null) return cached
@@ -695,6 +701,8 @@ class TypingTextView @JvmOverloads constructor(
                 .coerceIn(0, maxOf(0, totalRows - 1))
         }
 
+        typedPenRow = -1
+        typedPenEndX = 0f
         for (row in firstVisibleRow..lastVisibleRow) {
             val rowStart = if (row < rowStarts.size) rowStarts[row] else n
             val rowEnd = if (row + 1 < rowStarts.size) rowStarts[row + 1] else n
@@ -750,17 +758,33 @@ class TypingTextView @JvmOverloads constructor(
             }
 
             // === User input at 55% of row ===
-            // userInput 按 visibleIndices 对齐：跳过双方空格，将输入字符与 originalText 的非空白字符一一对应
+            // 已输入文本按“自身字宽”从本行左端自然流排（不再强行对齐到目标字符槽位）。
+            // 旧实现把第 r 个输入字符画在目标字符 charXs[visibleIndices[r]] 上，
+            // 目标字符宽度与输入字符宽度不一致时（把窄的 I 打成宽的 R、漏打空格、
+            // 或用比例字体），字形就会互相挤压重叠，表现为“打错字母会错位”。
+            // 自然流排只在真正打错后才向右累计偏移，永远不会出现压字。
             val inputBaseline = rowTop + rowHeight * 0.55f
             if (inputVisible.isNotEmpty()) {
                 textPaint.color = colorInputText
-                // 输入与正文按“非空白字符”一一对齐：第 r 个输入非空白字符画在第 r 个正文字符 charXs[visibleIndices[r]] 处
+                var penX = charXs[rowStart]
+                var rowHasInput = false
                 for (k in rowStart until rowEnd) {
-                    if (k >= charXs.size) break
                     val r = if (k < visibleRank.size) visibleRank[k] else -1
                     if (r < 0) continue
                     if (r >= inputVisible.length) break
-                    canvas.drawText(inputVisible[r].toString(), charXs[k], inputBaseline, textPaint)
+                    val ch = inputVisible[r]
+                    canvas.drawText(ch.toString(), penX, inputBaseline, textPaint)
+                    penX += charW(ch)
+                    rowHasInput = true
+                    if (r == inputVisible.length - 1) {
+                        typedPenRow = row
+                        typedPenEndX = penX
+                    }
+                }
+                if (rowHasInput && typedPenRow < 0) {
+                    // 已输入字符都在本行之后的行（不应发生），仍记录末行笔位
+                    typedPenRow = row
+                    typedPenEndX = penX
                 }
             }
 
@@ -781,16 +805,19 @@ class TypingTextView @JvmOverloads constructor(
 
         // === Blue cursor on user input line ===
         if (cursorVisible && originalText.isNotEmpty() && visibleIndices.isNotEmpty()) {
-            // 输入与正文按“非空白字符”对齐：光标位于“下一个待输入的正文非空白字符”处
             val typedVisible = inputVisible.length
             val (row, cursorX) = if (typedVisible < visibleIndices.size) {
                 val oi = visibleIndices[typedVisible]
-                charRows[oi] to charXs[oi]
+                val slotX = charXs[oi]
+                // 若上一字符已把笔位推到本行更右侧，光标紧随笔后；否则落在目标槽位
+                val x = if (typedPenRow == charRows[oi] && typedPenEndX > slotX) typedPenEndX else slotX
+                charRows[oi] to x
             } else {
-                // 已输完：光标停在最后一个字符右侧
+                // 全部输完：光标停在最后落笔处
                 val idx = originalText.length - 1
-                val cw = if (isEnglishContent) textPaint.measureText(originalText[idx].toString()) else charWidth
-                charRows[idx] to (charXs[idx] + cw)
+                val slotEnd = charXs[idx] + if (isEnglishContent) charW(originalText[idx]) else charWidth
+                val x = if (typedPenRow >= 0 && typedPenEndX > slotEnd) typedPenEndX else slotEnd
+                (if (typedPenRow >= 0) typedPenRow else charRows[idx]) to x
             }
 
             val rowTop = topPadding + row * rowHeight
