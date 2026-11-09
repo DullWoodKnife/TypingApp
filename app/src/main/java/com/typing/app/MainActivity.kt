@@ -373,20 +373,22 @@ class MainActivity : AppCompatActivity() {
             .apply()
     }
 
-    // 预置练习内容：按产品要求固定为 11 篇，顺序不可调整
+    // 预置练习内容：按产品要求固定为 12 篇，顺序不可调整
     private val PRESET_TITLES = arrayOf(
         "三字经", "千字文", "百家姓", "般若波罗蜜多心经", "太上老君说常清静经",
         "经乱离后天恩流夜郎忆旧游书怀赠江夏韦太守良宰", "常用汉字 3500 字",
-        "难拆字大全 200 字", "二级简码字大全", "成字字根大全", "常用 500 字文"
+        "难拆字大全 200 字", "二级简码字大全", "成字字根大全", "常用 500 字文",
+        "王弼版道德经"
     )
     private val PRESET_FILES = arrayOf(
         "preset/p01_sanzijing.txt", "preset/p02_qianziwen.txt", "preset/p03_baijiaxing.txt",
         "preset/p04_xinjing.txt", "preset/p05_qingjingjing.txt", "preset/p06_libai.txt",
         "preset/p07_hz3500.txt", "preset/p08_nanchaizi.txt", "preset/p09_erjijianma.txt",
-        "preset/p10_chengzizigen.txt", "preset/p11_changyong500.txt"
+        "preset/p10_chengzizigen.txt", "preset/p11_changyong500.txt",
+        "preset/p12_daodejing_wangbi.txt"
     )
     // 预置内容版本号：内容调整后递增，升级时整体替换旧预置内容
-    private val PRESET_VERSION = 4
+    private val PRESET_VERSION = 5
 
     private fun readAssetText(name: String): String {
         return try {
@@ -412,7 +414,7 @@ class MainActivity : AppCompatActivity() {
         return arr
     }
 
-    // 清除旧预置内容（c1..c9 及旧版本 p01..p11），按新顺序写入 11 篇；保留用户自建内容与练习记录
+    // 清除旧预置内容（c1..c9 及旧版本 p01..p12），按新顺序写入 12 篇；保留用户自建内容与练习记录
     private fun applyPresetMigration() {
         val current = appData.optInt("preset_version", 1)
         if (current >= PRESET_VERSION) return
